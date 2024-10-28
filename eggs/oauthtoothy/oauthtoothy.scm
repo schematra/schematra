@@ -43,6 +43,9 @@
   chicken.base
   chicken.condition
   chicken.io
+  chicken.format
+  chicken.bitwise
+  srfi-18 ;; thread
   medea
   openssl
   http-client
@@ -114,19 +117,49 @@
 		       ("client_id" . ,client-id)
 		       ("client_secret" . ,client-secret)
 		       ("redirect_uri" . ,redirect-uri))))
-     (condition-case
-      (call-with-input-request
-       token-url
-       form-data
-       (lambda (response-port)
-	 (let* ((response-body (read-string #f response-port))
-		(json-response (read-json response-body)))
-	   (unless json-response (signal (condition '(json parser-error ,response-body))))
-	   json-response)))
-      (exn (http) (begin
-		    (display exn) (newline)
-		    (halt 'bad-gateway "Failed to exchange authorization code")))
-      (exn (json) (halt 'bad-gateway "Invalid response from provider")))))
+
+     (define (should-retry? exn)
+       ;; Retry on SSL errors, network errors, and server errors (5xx)
+       ;; Don't retry on client errors (4xx) or JSON parsing errors
+       (let ((openssl? (condition-predicate 'openssl))
+             (net? (condition-predicate 'exn))
+             (server-error? (condition-predicate 'server-error)))
+         (cond
+          ((openssl? exn) #t)       ;; SSL errors - retry
+          ((net? exn) #t)            ;; Network errors - retry
+          ((server-error? exn) #t)   ;; 5xx server errors - retry
+          (else #f))))
+
+     (define (attempt-exchange retry-count max-retries)
+       (condition-case
+        (call-with-input-request
+         token-url
+         form-data
+         (lambda (response-port)
+           (let* ((response-body (read-string #f response-port))
+                  (json-response (read-json response-body)))
+             (unless json-response (signal (condition '(json parser-error ,response-body))))
+             json-response)))
+        (exn (json)
+             ;; JSON parsing error - don't retry
+             (halt 'bad-gateway "Invalid response from provider"))
+        (exn ()
+             ;; Catch any other error and decide whether to retry
+             (if (and (should-retry? exn) (< retry-count max-retries))
+                 (let ((delay-ms (arithmetic-shift 100 retry-count))) ;; Exponential backoff: 100ms, 200ms, 400ms
+                   (fprintf (current-error-port)
+                            "OAuth token exchange failed (attempt ~A/~A), retrying in ~Ams: ~A~%"
+                            (+ retry-count 1) max-retries delay-ms
+                            ((condition-property-accessor 'exn 'message "Unknown error") exn))
+                   (thread-sleep! (/ delay-ms 1000.0))
+                   (attempt-exchange (+ retry-count 1) max-retries))
+                 (begin
+                   (fprintf (current-error-port)
+                            "OAuth token exchange failed: ~A~%"
+                            ((condition-property-accessor 'exn 'message "Unknown error") exn))
+                   (halt 'bad-gateway "Failed to exchange authorization code"))))))
+
+     (attempt-exchange 0 3)))
 
  (define (build-callback-url provider)
    (let ((provider-name (alist-ref 'name provider)))
