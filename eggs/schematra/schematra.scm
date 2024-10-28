@@ -808,11 +808,12 @@
 
 ;; from spiffy.scm
 (define (call-with-input-file* file proc)
-  (call-with-input-file file (lambda (p)
-                               (handle-exceptions exn
-                                                  (begin (close-input-port p) (raise exn))
-                                                  (proc p)))
-                        #:binary))
+  (call-with-input-file file
+    (lambda (p)
+      (handle-exceptions exn
+          (begin (close-input-port p) (raise exn))
+        (proc p)))
+    #:binary))
 
 (define-record schematra-app
   resources        ;; alist with trees for verbs (used to be hash table)
