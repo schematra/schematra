@@ -17,4 +17,5 @@
  (component-options
   (csc-options "-O3" "-d0"))
  (components (extension schematra)
-	     (extension schematra-body-parser)))
+	     (extension schematra.body-parser)
+	     (extension schematra.test)))

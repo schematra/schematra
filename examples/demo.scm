@@ -91,6 +91,9 @@
 	 `(ok ,body-str ((content-type text/plain)
 			 (cache-control (max-age . 3600))))))
 
+ (get "/ccup-test"
+      (ccup '(h1 "yooo")))
+
  (get "/test-json"
       (send-json-response '((error . "something went wrong, I think"))))
 

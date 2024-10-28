@@ -141,86 +141,80 @@ EXAMPLE
 
 (define ex6 '(#<<EXAMPLE
 ;; Testing routes without a server - fast and isolated!
-(import test schematra uri-common intarweb srfi-1)
+(import test schematra schematra.test srfi-13 chicken.format medea)
 
 ;; Create isolated test app
 (define test-app (schematra/make-app))
 
-;; Define routes in test app
+;; Define routes in test app - using chiccup responses
 (with-schematra-app test-app
-  (get "/hello" "Hello, World!")
+  (lambda ()
+    ;; You can (import routes) or (include-relative "path/to/routes.scm") here
+    ;; Adding some explicitly for educational purposes
+    (get "/hello" '(ccup [h1 "Hello, World!"]))
 
-  (get "/users/:id"
-       (let ((id (alist-ref "id" (current-params) equal?)))
-         (format "User ~a" id)))
+    (get "/users/:id"
+         (let ((id (alist-ref "id" (current-params) equal?)))
+           `(ccup [div.user
+                   [h2 ,(format "User ~a" id)]
+                   [p "Profile page"]])))
 
-  (post "/api/echo"
-        (let ((name (alist-ref "name" (current-params) equal?)))
-          (send-json-response 'ok `((message . ,(format "Hello ~a" name))))))
+    (post "/api/echo"
+          (let ((name (alist-ref 'name (current-params))))
+            (send-json-response `((message . ,(format "Hello ~a" name))))))
 
-  ;; Add test middleware
-  (use-middleware!
-    (lambda (next)
-      (let ((result (next)))
-        ;; Middleware can transform responses
-        (if (string? result)
-            (string-append "[middleware] " result)
-            result)))))
-
-;; Helper: create mock request
-(define (make-mock-request method path)
-  (make-request method: method
-                uri: (uri-reference path)
-                headers: (headers '())))
+    ;; Add middleware that transforms responses (for demonstration)
+    (use-middleware!
+      (lambda (next)
+        (let ((result (next)))
+          ;; Middleware can inspect and transform responses
+          (if (and (list? result) (eq? (car result) 'ccup))
+              ;; Wrap chiccup responses with additional markup
+              `(ccup [div.wrapped ,(cadr result)])
+              result))))))
 
 ;; Run tests with the test egg
 (test-group "Schematra Routes"
 
-  (test "GET /hello returns greeting"
-    "[middleware] Hello, World!"
-    (with-schematra-app test-app
-      (parameterize ((current-request (make-mock-request 'GET "/hello"))
-                     (current-response (make-response)))
-        (schematra-route-request (current-request))
-        (current-body))))
+  (test "GET /hello returns response tuple with chiccup"
+    '(ok (ccup [div.wrapped [h1 "Hello, World!"]]) ())
+    (test-route test-app 'GET "/hello"))
 
-  (test "GET /users/:id extracts params correctly"
-    "[middleware] User 123"
-    (with-schematra-app test-app
-      (parameterize ((current-request (make-mock-request 'GET "/users/123"))
-                     (current-response (make-response)))
-        (schematra-route-request (current-request))
-        (current-body))))
+  (test "GET /users/:id extracts params and wraps with middleware"
+    '(ok (ccup [div.wrapped [div.user [h2 "User 123"] [p "Profile page"]]]) ())
+    (test-route test-app 'GET "/users/123"))
 
-  (test "POST /api/echo with query params"
-    #t
-    (with-schematra-app test-app
-      (parameterize ((current-request (make-mock-request 'POST "/api/echo?name=Alice"))
-                     (current-response (make-response)))
-        (schematra-route-request (current-request))
-        (string-contains (current-body) "Hello Alice"))))
+  (test "Can extract just the chiccup body from response tuple"
+    '(ccup [div.wrapped [h1 "Hello, World!"]])
+    (test-route-body test-app 'GET "/hello"))
+
+  (test "POST /api/echo returns JSON with correct content"
+    '((message . "Hello Alice"))
+    (read-json (test-route-body test-app 'POST "/api/echo?name=Alice")))
 
   (test "404 on unknown route"
     #f
-    (with-schematra-app test-app
-      (parameterize ((current-request (make-mock-request 'GET "/unknown"))
-                     (current-response (make-response)))
-        ;; Returns #f when route not found
-        (schematra-route-request (current-request))))))
+    (test-route test-app 'GET "/unknown")))
 
 ;; Run: csi -s test-routes.scm
 ;; Output:
-;;   Schematra Routes ...
-;;     GET /hello returns greeting .................... [PASS]
-;;     GET /users/:id extracts params correctly ....... [PASS]
-;;     POST /api/echo with query params ............... [PASS]
-;;     404 on unknown route ........................... [PASS]
-;;   4 tests completed in 0.001s (4 passed)
+;; -- testing Schematra Routes --------------------------------------------------
+;; GET /hello returns response tuple with chiccup ....................... [ PASS]
+;; GET /users/:id extracts params and wraps with middleware ............. [ PASS]
+;; Can extract just the chiccup body from response tuple ................ [ PASS]
+;; POST /api/echo returns JSON with correct content ..................... [ PASS]
+;; 404 on unknown route ................................................. [ PASS]
+;; 5 tests completed in 0.001 seconds.
+;; 5 out of 5 (100%) tests passed.
+;; -- done testing Schematra Routes ---------------------------------------------
 ;;
 ;; Benefits:
 ;; ✓ No HTTP server - tests run in milliseconds
+;; ✓ Test against response tuples: (status body headers)
+;; ✓ Assert on chiccup structure, not HTML strings
+;; ✓ Middleware can inspect and modify response tuples
 ;; ✓ Complete isolation - each test gets its own app
-;; ✓ Test middleware behavior independently
-;; ✓ Verify params, routing, and response bodies
+;; ✓ Verify params, routing, status codes, and response bodies
+;; ✓ Can still test rendered HTML with (current-body)
 EXAMPLE
 ))

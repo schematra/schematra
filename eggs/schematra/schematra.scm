@@ -241,11 +241,41 @@
 (define (ensure-current-app!)
   (unless (current-app) (error "No app context! use with-schematra-app to define routes or set (current-app) parameter")))
 
+;; Execute code within a Schematra app context
+;;
+;; This macro sets up the app context and optionally binds additional parameters
+;; for testing or other purposes. It supports two forms:
+;;
+;; ### Simple form (for defining routes):
+;; ```scheme
+;; (with-schematra-app app
+;;   (lambda ()
+;;     (get "/hello" "Hello")
+;;     (post "/users" ...)))
+;; ```
+;;
+;; ### Extended form (with additional parameter bindings for testing):
+;; ```scheme
+;; (with-schematra-app app
+;;   ((current-request (make-mock-request 'GET "/hello"))
+;;    (current-response (make-mock-response)))
+;;   (lambda ()
+;;     (schematra-route-request (current-request))
+;;     (current-response-tuple)))
+;; ```
+;;
+;; The extended form is particularly useful for testing, as it allows you to
+;; inject mock request/response objects directly into the parameter context.
 (define-syntax with-schematra-app
   (syntax-rules ()
-    ((_ app body ...)
+    ;; Extended form: with additional parameter bindings
+    ((_ app ((param value) ...) thunk)
+     (parameterize ((current-app app) (param value) ...)
+       (thunk)))
+    ;; Simple form: just app context
+    ((_ app thunk)
      (parameterize ((current-app app))
-       body ...))))
+       (thunk)))))
 
 (import-for-syntax srfi-13) ;; string-upcase in define-verb
 (define-syntax define-verb
@@ -614,18 +644,23 @@
                `(static-file ,full-path ,(headers-for-file full-path))
                (halt 'not-found "File not found"))))))
 
-(define (is-response? list)
+(define (is-response? lst)
   (and
    ;; is this a list?
-   (list? list)
+   (list? lst)
    ;; we need a pair of at least two items: status & body
-   (>= (length list) 2)
+   (>= (length lst) 2)
    ;; first element should be a valid status symbol
-   (symbol? (car list))
+   (symbol? (car lst))
    ;; next item should be a valid body-type
-   (string? (cadr list))
+   (string? (cadr lst))
    ;; should check for headers next
-   (if (= 3 (length list)) (list? (list-ref list 2)) #t)))
+   (if (= 3 (length lst)) (list? (list-ref lst 2)) #t)))
+
+(define (is-chiccup-response? lst)
+  (and (list? lst)
+       (= (length lst) 2)
+       (eq? (car lst) 'ccup)))
 
 ;; updates the response with the schematra tuple (mimicking a Rack
 ;; response). If there's a body in the tuple, it will set
@@ -634,6 +669,10 @@
   (cond
    [(string? tuple)
     (current-body tuple)
+    (update-response response status: 'ok)]
+   [(is-chiccup-response? tuple)
+    ;; Auto-render chiccup responses
+    (current-body (ccup->html (cadr tuple)))
     (update-response response status: 'ok)]
    [(is-response? tuple)
     (current-body (cadr tuple))
@@ -863,15 +902,23 @@
                                              (sendfile f (response-port (current-response)))
                                              (finish-response-body (current-response))))
                     [(exn i/o file) (send-status 'forbidden)])
-                   (send-response body: (current-body))))
+                   (send-response body: (current-body)))
+               ;; Return the normalized response tuple
+               (cond
+                [(string? response-tuple) `(ok ,response-tuple ())]
+                [(is-chiccup-response? response-tuple) `(ok ,response-tuple ())]
+                [(is-response? response-tuple) response-tuple]
+                [else `(error ,response-tuple ())]))
              [exn (halt-condition)
                   (let* ((status       (get-condition-property exn 'halt-condition 'status))
                          (body         (get-condition-property exn 'halt-condition 'body))
                          (halt-headers (get-condition-property exn 'halt-condition 'headers))
-                         (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies)))))
-                    (current-response (update-response-with-tuple! (current-response) (list status body new-headers)))
-                    (send-response status: status body: body))]))
-          #t)
+                         (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies))))
+                         (halt-tuple   (list status body new-headers)))
+                    (current-response (update-response-with-tuple! (current-response) halt-tuple))
+                    (send-response status: status body: body)
+                    ;; Return the halt tuple
+                    halt-tuple)])))
         #f)))
 
 ;; Install the Schematra router as a virtual host handler
