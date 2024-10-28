@@ -135,8 +135,6 @@ Building this blog reinforced what I love about Schematra:
 I'll be posting updates about new features, release notes, and
 tutorials on building real applications with Schematra.
 
-## 
-
 ---
 
 *This blog was built in an afternoon. The code is in the [schematra
