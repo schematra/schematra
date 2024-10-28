@@ -31,7 +31,7 @@
 ;; OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (module
- schematra-body-parser
+ schematra.body-parser
  (body-parser-middleware)
 
  (import scheme)
