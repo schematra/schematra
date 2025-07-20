@@ -15,26 +15,34 @@
 ;; find a resource based on a path on a tree. Returns the handler if
 ;; found, #f otherwise.
 (define (find-resource path tree)
+  (find-resource-with-params path tree '()))
+
+(define (find-resource-with-params path tree params)
   (cond
     ;; If tree is not a list or is empty, no match
     [(not (and (list? tree) (>= (length tree) 2)))
      #f]
     ;; Try to match first path element with tree node
-    [(string=? (car path) (car tree))
-     ;; If we've matched and this is the last path element
-     (if (null? (cdr path))
-         ;; Check if second element is a procedure (leaf node)
-         (if (procedure? (cadr tree))
-             (cadr tree)
-             #f)
-         ;; Otherwise, continue searching in subtrees
-         (let loop ((subtrees (cddr tree)))
-           (cond
-             [(null? subtrees) #f]
-             [(list? (car subtrees))
-              (let ((result (find-resource (cdr path) (car subtrees))))
-                (if result result (loop (cdr subtrees))))]
-             [else (loop (cdr subtrees))])))]
+    [(or (string=? (car path) (car tree))
+         (and (string-prefix? ":" (car tree)) (not (null? path))))
+     ;; Collect parameter if this is a param segment
+     (let ((new-params (if (string-prefix? ":" (car tree))
+                           (cons (cons (substring (car tree) 1) (car path)) params)
+                           params)))
+       ;; If we've matched and this is the last path element
+       (if (null? (cdr path))
+           ;; Check if second element is a procedure (leaf node)
+           (if (procedure? (cadr tree))
+               (list (cadr tree) (reverse new-params))  ; Return handler and params
+               #f)
+           ;; Otherwise, continue searching in subtrees
+           (let loop ((subtrees (cddr tree)))
+             (cond
+               [(null? subtrees) #f]
+               [(list? (car subtrees))
+                (let ((result (find-resource-with-params (cdr path) (car subtrees) new-params)))
+                  (if result result (loop (cdr subtrees))))]
+               [else (loop (cdr subtrees))]))))]
     ;; No match with current tree node
     [else #f]))
 
@@ -142,17 +150,21 @@
 	   [(eq? method 'GET) schematra-get-routes]
 	   [(eq? method 'POST) schematra-post-routes]
 	   [else (error "no handlers for this method")]))
-	 (handler (find-resource normalized-path route-handlers)))
+	 (result (find-resource normalized-path route-handlers)))
     (format #t "Req: ~A. Path: ~A. Method: ~A\n" request normalized-path method)
-    (if handler (schematra-parse-response (handler request)) (continue))))
+    (if result 
+        (let ((handler (car result))
+              (params (cadr result)))
+          (schematra-parse-response (handler request params)))
+        (continue))))
 
 ;; install vhost handler
 (vhost-map
  `((,schematra-vhost-default . ,(lambda (continue) (schematra-router continue)))))
 
 (get "/foo/:bar"
-     (lambda (request)
-       "yeah boy"))
+     (lambda (request params)
+       (format #f "Hello ~A!" (alist-ref "bar" params string=?))))
 
 (thread-start!
  (lambda ()
