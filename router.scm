@@ -76,9 +76,8 @@
 (define schematra-post-routes (make-path-tree))
 (define schematra-vhost-default ".*")
 
-(define (normalize-path path)
-  (let* ((path-list (uri-path (uri-reference path)))
-         ;; Ensure all elements are strings, converting symbols to strings
+(define (normalize-path path-list)
+  (let* (;; Ensure all elements are strings, converting symbols to strings
          (string-path (map (lambda (segment)
                             (if (symbol? segment)
                                 (symbol->string segment)
@@ -94,14 +93,14 @@
 ;; path: string representing the URL path (e.g., "/users", "/api/posts")
 ;; body: procedure that takes a request object and optional params, returns response
 (define (get path body)
-  (let ((normalized-path (normalize-path path)))
+  (let ((normalized-path (normalize-path (uri-path (uri-reference path)))))
     (set! schematra-get-routes (add-resource normalized-path schematra-get-routes body))))
 
 ;; Register a POST route handler  
 ;; path: string representing the URL path (e.g., "/users", "/api/posts")
 ;; body: procedure that takes a request object and optional params, returns response
 (define (post path body)
-  (let ((normalized-path (normalize-path path)))
+  (let ((normalized-path (normalize-path (uri-path (uri-reference path)))))
     (set! schematra-post-routes (add-resource normalized-path schematra-post-routes body))))
 
 (define (alist? x)
@@ -135,7 +134,7 @@
 (define (schematra-router continue)
   (let* ((request (current-request))
 	 (method (request-method request))
-	 (normalized-path (uri-path (request-uri request)))
+	 (normalized-path (normalize-path (uri-path (request-uri request))))
 	 (route-handlers
 	  (cond
 	   [(eq? method 'GET) schematra-get-routes]
