@@ -77,7 +77,7 @@
 (define schematra-post-routes (make-path-tree))
 (define schematra-vhost-default ".*")
 
-(define (get path body)
+(define (normalize-path path)
   (let* ((path-list (uri-path (uri-reference path)))
          ;; Remove starting symbol if present and ensure all elements are strings
          (normalized-path (map (lambda (segment)
@@ -87,18 +87,14 @@
                               (if (and (not (null? path-list)) (symbol? (car path-list)))
                                   (cdr path-list)
                                   path-list))))
+    normalized-path))
+
+(define (get path body)
+  (let ((normalized-path (normalize-path path)))
     (hash-table-set! schematra-get-routes normalized-path body)))
 
 (define (post path body)
-  (let* ((path-list (uri-path (uri-reference path)))
-         ;; Remove starting symbol if present and ensure all elements are strings
-         (normalized-path (map (lambda (segment)
-                                (if (symbol? segment)
-                                    (symbol->string segment)
-                                    segment))
-                              (if (and (not (null? path-list)) (symbol? (car path-list)))
-                                  (cdr path-list)
-                                  path-list))))
+  (let ((normalized-path (normalize-path path)))
     (hash-table-set! schematra-post-routes normalized-path body)))
 
 (define (alist? x)
