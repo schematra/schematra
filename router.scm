@@ -41,8 +41,36 @@
     [else #f]))
 
 ;; TODO: implement in a way that works with find-resource
-(define (add-resource path tree)
-  #f)
+(define (add-resource path tree handler)
+  (if (null? path)
+      tree  ; Empty path, return tree as-is
+      (let ((target-segment (car path))
+            (remaining-path (cdr path)))
+        (cond
+          ;; If tree matches current segment
+          [(and (list? tree) (>= (length tree) 2) (string=? target-segment (car tree)))
+           (if (null? remaining-path)
+               ;; Last segment, update handler
+               (list (car tree) handler)
+               ;; More segments, recursively add to subtrees
+               (let loop ((subtrees (cddr tree)) (result (list (car tree) (cadr tree))))
+                 (cond
+                   [(null? subtrees)
+                    ;; No matching subtree, create new one
+                    (append result (list (add-resource remaining-path (list (car remaining-path) #f) handler)))]
+                   [(and (list? (car subtrees)) (string=? (car remaining-path) (caar subtrees)))
+                    ;; Found matching subtree
+                    (append result 
+                            (list (add-resource remaining-path (car subtrees) handler))
+                            (cdr subtrees))]
+                   [else
+                    ;; Keep looking
+                    (loop (cdr subtrees) (append result (list (car subtrees))))])))]
+          ;; Tree doesn't match, create new tree for this path
+          [else
+           (if (null? remaining-path)
+               (list target-segment handler)
+               (list target-segment #f (add-resource remaining-path (list (car remaining-path) #f) handler)))]))))
 
 ;; empty routes. each verb has a list of routes
 (define schematra-get-routes '())
