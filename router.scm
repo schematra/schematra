@@ -21,11 +21,6 @@
     ;; If tree is not a list or is empty, no match
     [(not (and (list? tree) (>= (length tree) 2)))
      #f]
-    ;; If path is empty, check if we're at root and tree has procedure
-    [(null? path)
-     (if (procedure? (cadr tree))
-         (cadr tree)
-         #f)]
     ;; Try to match first path element with tree node
     [(string=? (car path) (car tree))
      ;; If we've matched and this is the last path element
