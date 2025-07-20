@@ -11,7 +11,7 @@
     "Welcome to Schematra"))
 
 (define (make-path-tree)
-  '("/" schematra-default-handler))
+  `("/" ,schematra-default-handler))
 
 ;; find a resource based on a path on a tree. Returns the handler if
 ;; found, #f otherwise.
@@ -39,6 +39,10 @@
              [else (loop (cdr subtrees))])))]
     ;; No match with current tree node
     [else #f]))
+
+;; TODO: implement in a way that works with find-resource
+(define (add-resource path tree)
+  #f)
 
 ;; empty routes. each verb has a list of routes
 (define schematra-get-routes '())
