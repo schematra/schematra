@@ -79,14 +79,12 @@
 
 (define (normalize-path path)
   (let* ((path-list (uri-path (uri-reference path)))
-         ;; Remove starting symbol if present and ensure all elements are strings
+         ;; Ensure all elements are strings, converting symbols to strings
          (normalized-path (map (lambda (segment)
                                 (if (symbol? segment)
                                     (symbol->string segment)
                                     segment))
-                              (if (and (not (null? path-list)) (symbol? (car path-list)))
-                                  (cdr path-list)
-                                  path-list))))
+                              path-list)))
     normalized-path))
 
 (define (get path body)
