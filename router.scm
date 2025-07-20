@@ -50,8 +50,8 @@
           ;; If tree matches current segment
           [(and (list? tree) (>= (length tree) 2) (string=? target-segment (car tree)))
            (if (null? remaining-path)
-               ;; Last segment, update handler
-               (list (car tree) handler)
+               ;; Last segment, update handler but preserve existing subtrees
+               (append (list (car tree) handler) (cddr tree))
                ;; More segments, recursively add to subtrees
                (let loop ((subtrees (cddr tree)) (result (list (car tree) (cadr tree))))
                  (cond
