@@ -73,10 +73,11 @@
                (list target-segment #f (add-resource remaining-path (list (car remaining-path) #f) handler)))]))))
 
 ;; empty routes. each verb has a list of routes
-(define schematra-get-routes '())
-(define schematra-post-routes '())
+(define schematra-get-routes (make-path-tree))
+(define schematra-post-routes (make-path-tree))
 (define schematra-vhost-default ".*")
 
+;; TODO: make sure the path is only strings, as the path from uri-path might have a starting symbol ('/)
 (define (get path body)
   (let ((path-list (uri-path (uri-reference path))))
     (hash-table-set! schematra-get-routes path-list body)))
