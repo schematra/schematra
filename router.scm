@@ -79,11 +79,15 @@
 (define (normalize-path path)
   (let* ((path-list (uri-path (uri-reference path)))
          ;; Ensure all elements are strings, converting symbols to strings
-         (normalized-path (map (lambda (segment)
-                                (if (symbol? segment)
-                                    (symbol->string segment)
-                                    segment))
-                              path-list)))
+         (string-path (map (lambda (segment)
+                            (if (symbol? segment)
+                                (symbol->string segment)
+                                segment))
+                          path-list))
+         ;; Filter out empty strings
+         (normalized-path (filter (lambda (segment)
+                                   (not (string=? segment "")))
+                                 string-path)))
     normalized-path))
 
 ;; Register a GET route handler
