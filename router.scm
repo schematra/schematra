@@ -75,12 +75,14 @@
 (define schematra-vhost-default ".*")
 
 (define (normalize-path path-list)
-  (let* (;; Ensure all elements are strings, converting symbols to strings
+  (let* (;; Ensure path-list is actually a list
+         (path-as-list (if (list? path-list) path-list (list path-list)))
+         ;; Ensure all elements are strings, converting symbols to strings
          (string-path (map (lambda (segment)
                             (if (symbol? segment)
                                 (symbol->string segment)
                                 segment))
-                          path-list))
+                          path-as-list))
          ;; Filter out empty strings
          (normalized-path (filter (lambda (segment)
                                    (not (string=? segment "")))
