@@ -135,14 +135,14 @@
 (define (schematra-router continue)
   (let* ((request (current-request))
 	 (method (request-method request))
-	 (path (uri-path (request-uri request)))
+	 (normalized-path (uri-path (request-uri request)))
 	 (route-handlers
 	  (cond
 	   [(eq? method 'GET) schematra-get-routes]
 	   [(eq? method 'POST) schematra-post-routes]
 	   [else (error "no handlers for this method")]))
-	 (handler (hash-table-ref/default route-handlers path #f)))
-    (format #t "Req: ~A. Path: ~A. Method: ~A\n" request path method)
+	 (handler (find-resource normalized-path route-handlers)))
+    (format #t "Req: ~A. Path: ~A. Method: ~A\n" request normalized-path method)
     (if handler (schematra-parse-response (handler request)) (continue))))
 
 ;; install vhost handler
