@@ -19,9 +19,12 @@
 ;; Default handler for unmatched routes
 ;; 
 ;; This handler is called when no specific route matches the incoming request.
-;; It serves as a fallback and returns a simple welcome message.
+;; It serves as a fallback and returns a simple welcome message. This handler
+;; is automatically registered for the root path ("/") when the route trees
+;; are initialized.
 ;; 
 ;; Parameters:
+;;   _request: the HTTP request object (ignored by default handler)
 ;;   params: optional parameter alist (ignored by default handler)
 ;; 
 ;; Returns:
