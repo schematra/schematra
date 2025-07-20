@@ -14,7 +14,6 @@
 
 ;; find a resource based on a path on a tree. Returns the handler if
 ;; found, #f otherwise.
-;; TODO: implement a version of this. Assume path is a list with strings and tree is a tree-like list, where each node can be compared to a path element. The leaf nodes should have a `procedure` that can be returned. If nothing is found, then it should return #f
 (define (find-resource path tree)
   (cond
     ;; If tree is not a list or is empty, no match
@@ -39,7 +38,6 @@
     ;; No match with current tree node
     [else #f]))
 
-;; TODO: implement in a way that works with find-resource
 (define (add-resource path tree handler)
   (if (null? path)
       tree  ; Empty path, return tree as-is
@@ -93,15 +91,17 @@
 ;; path: string representing the URL path (e.g., "/users", "/api/posts")
 ;; body: procedure that takes a request object and optional params, returns response
 (define (get path body)
-  (let ((normalized-path (normalize-path (uri-path (uri-reference path)))))
-    (set! schematra-get-routes (add-resource normalized-path schematra-get-routes body))))
+  (let ((raw-uri-path (uri-path (uri-reference path))))
+    (set! schematra-get-routes
+	  (add-resource (normalize-path raw-uri-path) schematra-get-routes body))))
 
 ;; Register a POST route handler  
 ;; path: string representing the URL path (e.g., "/users", "/api/posts")
 ;; body: procedure that takes a request object and optional params, returns response
 (define (post path body)
-  (let ((normalized-path (normalize-path (uri-path (uri-reference path)))))
-    (set! schematra-post-routes (add-resource normalized-path schematra-post-routes body))))
+  (let ((raw-uri-path (uri-path (uri-reference path))))
+    (set! schematra-post-routes
+	  (add-resource (normalize-path raw-uri-path) schematra-post-routes body))))
 
 (define (alist? x)
   (and (list? x)
@@ -149,7 +149,7 @@
  `((,schematra-vhost-default . ,(lambda (continue) (schematra-router continue)))))
 
 (get "/foo/:bar"
-     (lambda (request #!optional (params '()))
+     (lambda (request)
        "OK"))
 
 (thread-start!
