@@ -152,7 +152,7 @@
 
 (get "/foo/:bar"
      (lambda (request)
-       "OK"))
+       "yeah boy"))
 
 (thread-start!
  (lambda ()
