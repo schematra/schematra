@@ -7,7 +7,7 @@
  srfi-18)
 
 (define (schematra-default-handler #!optional params)
-  "Welcome to Schematra")
+  "Welcome to Schematra, Sinatra's weird friend.")
 
 (define (make-path-tree)
   `("/" ,schematra-default-handler))
@@ -159,12 +159,9 @@
         (continue))))
 
 ;; install vhost handler
-(vhost-map
- `((,schematra-vhost-default . ,(lambda (continue) (schematra-router continue)))))
-
-(get "/foo/:bar"
-     (lambda (request params)
-       (format #f "Hello ~A!" (alist-ref "bar" params string=?))))
+(define (schematra-install)
+  (vhost-map
+   `((,schematra-vhost-default . ,(lambda (continue) (schematra-router continue))))))
 
 (thread-start!
  (lambda ()
