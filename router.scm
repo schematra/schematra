@@ -6,9 +6,8 @@
  srfi-13
  srfi-18)
 
-(define (schematra-default-handler)
-  (lambda (#!optional params)
-    "Welcome to Schematra"))
+(define (schematra-default-handler #!optional params)
+  "Welcome to Schematra")
 
 (define (make-path-tree)
   `("/" ,schematra-default-handler))
@@ -92,14 +91,14 @@
 ;; body: procedure that takes a request object and optional params, returns response
 (define (get path body)
   (let ((normalized-path (normalize-path path)))
-    (hash-table-set! schematra-get-routes normalized-path body)))
+    (add-resource normalized-path schematra-get-routes body)))
 
 ;; Register a POST route handler  
 ;; path: string representing the URL path (e.g., "/users", "/api/posts")
 ;; body: procedure that takes a request object and optional params, returns response
 (define (post path body)
   (let ((normalized-path (normalize-path path)))
-    (hash-table-set! schematra-post-routes normalized-path body)))
+    (add-resource normalized-path schematra-post-routes body)))
 
 (define (alist? x)
   (and (list? x)
