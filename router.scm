@@ -158,7 +158,17 @@
           (schematra-parse-response (handler request params)))
         (continue))))
 
-;; install vhost handler
+;; Install the Schematra router as a virtual host handler
+;; 
+;; This function configures the Spiffy web server to use Schematra's routing system.
+;; It maps the default virtual host pattern (.*) to the schematra-router function,
+;; which will handle all incoming HTTP requests by matching them against registered
+;; routes and calling the appropriate handlers.
+;;
+;; Call this function before starting the server to enable route handling.
+;; Example usage:
+;;   (schematra-install)
+;;   (start-server port: 8080)
 (define (schematra-install)
   (vhost-map
    `((,schematra-vhost-default . ,(lambda (continue) (schematra-router continue))))))
