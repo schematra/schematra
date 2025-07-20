@@ -1,3 +1,13 @@
+(module schematra
+(;; Parameters
+ schematra-default-handler
+ schematra-default-vhost
+ ;; Procedures
+ get post
+ schematra-install
+ )
+)
+
 (import
  spiffy
  format
@@ -46,7 +56,7 @@
     ;; No match with current tree node
     [else #f]))
 
-(define (add-resource path tree handler)
+(define (add-resource! path tree handler)
   (if (null? path)
       tree  ; Empty path, return tree as-is
       (let ((target-segment (car path))
@@ -78,9 +88,9 @@
                (list target-segment #f (add-resource remaining-path (list (car remaining-path) #f) handler)))]))))
 
 ;; empty routes. each verb has a list of routes
-(define schematra-get-routes (make-path-tree))
-(define schematra-post-routes (make-path-tree))
-(define schematra-vhost-default ".*")
+(define get-routes (make-path-tree))
+(define post-routes (make-path-tree))
+(define schematra-default-vhost ".*")
 
 (define (normalize-path path-list)
   (let* (;; Ensure path-list is actually a list
@@ -102,16 +112,16 @@
 ;; body: procedure that takes a request object and optional params, returns response
 (define (get path body)
   (let ((raw-uri-path (uri-path (uri-reference path))))
-    (set! schematra-get-routes
-	  (add-resource (normalize-path raw-uri-path) schematra-get-routes body))))
+    (set! get-routes
+	  (add-resource! (normalize-path raw-uri-path) get-routes body))))
 
 ;; Register a POST route handler  
 ;; path: string representing the URL path (e.g., "/users", "/api/posts")
 ;; body: procedure that takes a request object and optional params, returns response
 (define (post path body)
   (let ((raw-uri-path (uri-path (uri-reference path))))
-    (set! schematra-post-routes
-	  (add-resource (normalize-path raw-uri-path) schematra-post-routes body))))
+    (set! post-routes
+	  (add-resource! (normalize-path raw-uri-path) post-routes body))))
 
 (define (alist? x)
   (and (list? x)
@@ -147,8 +157,8 @@
 	 (normalized-path (normalize-path (uri-path (request-uri request))))
 	 (route-handlers
 	  (cond
-	   [(eq? method 'GET) schematra-get-routes]
-	   [(eq? method 'POST) schematra-post-routes]
+	   [(eq? method 'GET) get-routes]
+	   [(eq? method 'POST) post-routes]
 	   [else (error "no handlers for this method")]))
 	 (result (find-resource normalized-path route-handlers)))
     (format #t "Req: ~A. Path: ~A. Method: ~A\n" request normalized-path method)
@@ -171,7 +181,7 @@
 ;;   (start-server port: 8080)
 (define (schematra-install)
   (vhost-map
-   `((,schematra-vhost-default . ,(lambda (continue) (schematra-router continue))))))
+   `((,schematra-default-vhost . ,(lambda (continue) (schematra-router continue))))))
 
 (thread-start!
  (lambda ()
