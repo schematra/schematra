@@ -16,6 +16,16 @@
  srfi-13
  srfi-18)
 
+;; Default handler for unmatched routes
+;; 
+;; This handler is called when no specific route matches the incoming request.
+;; It serves as a fallback and returns a simple welcome message.
+;; 
+;; Parameters:
+;;   params: optional parameter alist (ignored by default handler)
+;; 
+;; Returns:
+;;   A string containing the default welcome message
 (define (schematra-default-handler #!optional params)
   "Welcome to Schematra, Sinatra's weird friend.")
 
