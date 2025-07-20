@@ -87,10 +87,16 @@
                               path-list)))
     normalized-path))
 
+;; Register a GET route handler
+;; path: string representing the URL path (e.g., "/users", "/api/posts")
+;; body: procedure that takes a request object and optional params, returns response
 (define (get path body)
   (let ((normalized-path (normalize-path path)))
     (hash-table-set! schematra-get-routes normalized-path body)))
 
+;; Register a POST route handler  
+;; path: string representing the URL path (e.g., "/users", "/api/posts")
+;; body: procedure that takes a request object and optional params, returns response
 (define (post path body)
   (let ((normalized-path (normalize-path path)))
     (hash-table-set! schematra-post-routes normalized-path body)))
