@@ -26,7 +26,7 @@
 ;; 
 ;; Returns:
 ;;   A string containing the default welcome message
-(define (schematra-default-handler #!optional params)
+(define (schematra-default-handler _request #!optional params)
   "Welcome to Schematra, Sinatra's weird friend.")
 
 (define (make-path-tree)
