@@ -17,7 +17,33 @@
 ;; found, #f otherwise.
 ;; TODO: implement a version of this. Assume path is a list with strings and tree is a tree-like list, where each node can be compared to a path element. The leaf nodes should have a `procedure` that can be returned. If nothing is found, then it should return #f
 (define (find-resource path tree)
-  )
+  (cond
+    ;; If path is empty, we've matched completely
+    [(null? path)
+     ;; Check if current tree node is a leaf with a procedure
+     (if (and (list? tree) (= (length tree) 2) (procedure? (cadr tree)))
+         (cadr tree)  ; return the procedure
+         #f)]         ; not a valid leaf
+    ;; If tree is not a list or is empty, no match
+    [(not (and (list? tree) (>= (length tree) 2)))
+     #f]
+    ;; Try to match first path element with tree node
+    [(string=? (car path) (car tree))
+     ;; If this is a leaf node (has procedure), check if path is consumed
+     (if (procedure? (cadr tree))
+         (if (null? (cdr path))
+             (cadr tree)  ; path fully matched, return procedure
+             #f)          ; path not fully consumed, no match
+         ;; Otherwise, continue searching in subtrees
+         (let loop ((subtrees (cdr tree)))
+           (cond
+             [(null? subtrees) #f]
+             [(list? (car subtrees))
+              (let ((result (find-resource (cdr path) (car subtrees))))
+                (if result result (loop (cdr subtrees))))]
+             [else (loop (cdr subtrees))])))]
+    ;; No match with current tree node
+    [else #f]))
 
 ;; empty routes. each verb has a list of routes
 (define schematra-get-routes '())
