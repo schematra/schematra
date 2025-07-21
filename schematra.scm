@@ -223,7 +223,8 @@
  (define (schematra-router continue)
    (let* ((request (current-request))
 	  (method (request-method request))
-	  (normalized-path (normalize-path (uri-path (request-uri request))))
+	  (uri (request-uri request))
+	  (normalized-path (normalize-path (uri-path uri)))
 	  (route-handlers
 	   (cond
 	    [(eq? method 'GET) get-routes]
@@ -233,8 +234,9 @@
      (if development-mode?
 	 (format #t "Req: ~A. Path: ~A. Method: ~A\n" request normalized-path method))
      (if result 
-         (let ((handler (car result))
-               (params (cadr result)))
+         (let* ((handler (car result))
+		(route-params (cadr result))
+		(params (append route-params (uri-query uri))))
            (parse-response (handler request params)))
          (continue))))
 
