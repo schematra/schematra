@@ -31,7 +31,7 @@
 
 (get "/"
      (lambda (request #!optional params)
-       (ccup/html `[h1#hero "hey, welcome"])))
+       welcome-page))
 
 (define (lookup key alist)
   (let ((pair (assoc key alist)))
