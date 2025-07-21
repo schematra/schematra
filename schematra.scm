@@ -245,6 +245,29 @@
  (define (log-dbg format . rest)
    (apply log-to (access-log) format rest))
 
+ ;; Extract the request body as a string
+ ;;
+ ;; Reads the HTTP request body from the request port and returns it as a string.
+ ;; This function handles both requests with and without Content-Length headers.
+ ;; It's commonly used in POST request handlers to access form data, JSON payloads,
+ ;; or other request body content.
+ ;;
+ ;; Parameters:
+ ;;   request: HTTP request object containing headers, method, URI, and port
+ ;;
+ ;; Returns:
+ ;;   A string containing the complete request body content
+ ;;
+ ;; Behavior:
+ ;;   - If Content-Length header is present, reads exactly that many bytes
+ ;;   - If Content-Length header is missing, reads until EOF
+ ;;   - Returns empty string if no body content is available
+ ;;
+ ;; Example usage:
+ ;;   (post "/submit" 
+ ;;         (lambda (req params)
+ ;;           (let ((body (request-body-string req)))
+ ;;             (format "Received: ~A" body))))
  (define (request-body-string request)
    (let* ((in-port (request-port request))
 	  (headers (request-headers request))
