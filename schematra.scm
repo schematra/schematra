@@ -36,6 +36,18 @@
   srfi-13
   srfi-18)
 
+ ;; Default virtual host pattern for Schematra routing
+ ;;
+ ;; This parameter defines the regular expression pattern used to match virtual hosts
+ ;; when installing the Schematra router. The default pattern ".*" matches all hostnames,
+ ;; meaning the router will handle requests for any domain or IP address.
+ ;;
+ ;; You can customize this to restrict routing to specific domains:
+ ;;   - "example\\.com" - matches only example.com
+ ;;   - "(api|www)\\.example\\.com" - matches api.example.com and www.example.com
+ ;;   - "localhost" - matches only localhost
+ ;;
+ ;; This parameter is used by schematra-install when configuring the vhost-map.
  (define schematra-default-vhost ".*")
 
  ;; Default handler for unmatched routes
@@ -54,9 +66,39 @@
  (define (schematra-default-handler _request #!optional params)
    "Welcome to Schematra, Sinatra's weird friend.")
 
+ ;; Log an error message to the error log
+ ;;
+ ;; Writes a formatted error message to the configured error log stream.
+ ;; By default, this writes to standard error (stderr). The error log destination
+ ;; can be configured using Spiffy's error-log parameter.
+ ;;
+ ;; Parameters:
+ ;;   format: string - Format string compatible with the format procedure
+ ;;   rest: any - Additional arguments for the format string
+ ;;
+ ;; Example usage:
+ ;;   (log-err "Database connection failed: ~A" error-message)
+ ;;   (log-err "Invalid user ID: ~A (expected number)" user-id)
  (define (log-err format . rest)
    (apply log-to (error-log) format rest))
 
+ ;; Log a debug/access message to the access log
+ ;;
+ ;; Writes a formatted debug or access message to the configured access log stream.
+ ;; By default, this writes to standard output (stdout). The access log destination
+ ;; can be configured using Spiffy's access-log parameter.
+ ;;
+ ;; This is commonly used for request logging, debugging information, and general
+ ;; application status messages that don't indicate errors.
+ ;;
+ ;; Parameters:
+ ;;   format: string - Format string compatible with the format procedure
+ ;;   rest: any - Additional arguments for the format string
+ ;;
+ ;; Example usage:
+ ;;   (log-dbg "Processing request for path: ~A" path)
+ ;;   (log-dbg "User ~A logged in successfully" username)
+ ;;   (log-dbg "Cache hit for key: ~A" cache-key)
  (define (log-dbg format . rest)
    (apply log-to (access-log) format rest))
 
