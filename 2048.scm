@@ -166,3 +166,6 @@
           (move-tiles direction)
           (add-random-tile!)
           (ccup/html (render-grid)))))
+
+(schematra-install)
+(schematra-start)
