@@ -1,6 +1,6 @@
 (load "schematra.scm")
 (load "chiccup.scm")
-(import schematra chiccup format srfi-1 srfi-194)
+(import schematra chiccup format srfi-1 random-mtzig)
 
 ;; Game state - 4x4 grid initialized with zeros
 (define game-grid (make-vector 16 0))
@@ -16,8 +16,8 @@
   (let ((empty-positions (filter (lambda (i) (= (vector-ref game-grid i) 0))
                                 (iota 16))))
     (when (not (null? empty-positions))
-      (let ((pos (list-ref empty-positions (random (length empty-positions))))
-            (value (if (< (random 10) 9) 2 4)))
+      (let ((pos (list-ref empty-positions (random-integer (length empty-positions))))
+            (value (if (< (random-integer 10) 9) 2 4)))
         (vector-set! game-grid pos value)))))
 
 ;; Convert 1D index to 2D coordinates
