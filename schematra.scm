@@ -24,6 +24,7 @@
 
  (import scheme)
  (import
+  (chicken base)
   spiffy
   format
   intarweb
