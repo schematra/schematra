@@ -139,8 +139,46 @@
      normalized-path))
 
  ;; Register a GET route handler
- ;; path: string representing the URL path (e.g., "/users", "/api/posts")
- ;; body: procedure that takes a request object and optional params, returns response
+ ;;
+ ;; Registers a handler function to respond to HTTP GET requests for a specific path.
+ ;; The path can include parameter segments prefixed with ':' to capture dynamic values.
+ ;;
+ ;; Parameters:
+ ;;   path: string - URL path pattern (e.g., "/users", "/api/posts/:id", "/users/:user-id/posts/:post-id")
+ ;;   body: procedure - Handler function that processes the request
+ ;;
+ ;; Handler Function Signature:
+ ;;   The handler function must accept two arguments:
+ ;;     request: HTTP request object containing headers, method, URI, etc.
+ ;;     params: association list of path parameters (optional, can be empty)
+ ;;
+ ;; Path Parameters:
+ ;;   URL segments starting with ':' become parameters. For example:
+ ;;     - Route "/users/:id" matches "/users/123" 
+ ;;     - The params argument will be '(("id" . "123"))
+ ;;     - Route "/users/:user-id/posts/:post-id" matches "/users/alice/posts/42"
+ ;;     - The params argument will be '(("user-id" . "alice") ("post-id" . "42"))
+ ;;
+ ;; Handler Return Value:
+ ;;   The handler should return a string (which becomes the response body with 200 OK status)
+ ;;   or a response list in the format (status body [headers]).
+ ;;
+ ;; Example usage:
+ ;;   ;; Simple static route
+ ;;   (get "/hello" (lambda (req params) "Hello, World!"))
+ ;;
+ ;;   ;; Route with parameters
+ ;;   (get "/users/:id" 
+ ;;        (lambda (req params)
+ ;;          (let ((user-id (alist-ref "id" params equal?)))
+ ;;            (format "User ID: ~A" user-id))))
+ ;;
+ ;;   ;; Route with multiple parameters
+ ;;   (get "/users/:user-id/posts/:post-id"
+ ;;        (lambda (req params)
+ ;;          (let ((user-id (alist-ref "user-id" params equal?))
+ ;;                (post-id (alist-ref "post-id" params equal?)))
+ ;;            (format "User ~A, Post ~A" user-id post-id))))
  (define (get path body)
    (let ((raw-uri-path (uri-path (uri-reference path))))
      (set! get-routes
