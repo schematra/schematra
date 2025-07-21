@@ -149,12 +149,11 @@
       [.mt-4.text-white
        [p "Use arrow keys or buttons to move tiles"]
        [.grid.grid-cols-2.gap-2.mt-4.max-w-xs.mx-auto
-        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
+        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded.col-span-2
                  (("hx-post" . "/2048/move/up")
                   ("hx-target" . "#game-container")
                   ("hx-swap" . "innerHTML"))
          "↑"]
-        [div]
         [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
                  (("hx-post" . "/2048/move/left")
                   ("hx-target" . "#game-container")
@@ -165,8 +164,7 @@
                   ("hx-target" . "#game-container")
                   ("hx-swap" . "innerHTML"))
          "→"]
-        [div]
-        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
+        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded.col-span-2
                  (("hx-post" . "/2048/move/down")
                   ("hx-target" . "#game-container")
                   ("hx-swap" . "innerHTML"))
@@ -191,4 +189,4 @@
           (ccup/html (render-grid)))))
 
 (schematra-install)
-(schematra-start)
+(schematra-start development?: #t)
