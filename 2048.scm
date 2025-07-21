@@ -52,7 +52,7 @@
 
 ;; Render the game grid
 (define (render-grid)
-  `[div (("class" . "grid grid-cols-4 gap-2 bg-gray-300 p-4 rounded-lg"))
+  `[.grid.grid-cols-4.gap-2.bg-gray-300.p-4.rounded-lg
     ,@(map (lambda (i) (render-tile (vector-ref game-grid i)))
            (iota 16))])
 
@@ -112,41 +112,41 @@
 
 ;; Game page content
 (define game-2048-content
-  `[div (("class" . "min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center p-4"))
-    [div (("class" . "text-center"))
-     [h1 (("class" . "text-4xl font-bold text-white mb-8")) "🎮 2048 Game"]
+  `[.min-h-screen.bg-gradient-to-br.from-blue-400.to-purple-600.flex.items-center.justify-center.p-4
+    [.text-center
+     [h1.text-4xl.font-bold.text-white.mb-8 "🎮 2048 Game"]
      [div (("id" . "game-container"))
       ,(render-grid)]
-     [div (("class" . "mt-8 space-x-4"))
-      [button (("class" . "bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded")
-               ("hx-post" . "/2048/new-game")
-               ("hx-target" . "#game-container")
-               ("hx-swap" . "innerHTML"))
+     [.mt-8.space-x-4
+      [button.bg-green-500.hover:bg-green-600.text-white.font-bold.py-2.px-4.rounded
+               (("hx-post" . "/2048/new-game")
+                ("hx-target" . "#game-container")
+                ("hx-swap" . "innerHTML"))
        "New Game"]
-      [div (("class" . "mt-4 text-white"))
+      [.mt-4.text-white
        [p "Use arrow keys or buttons to move tiles"]
-       [div (("class" . "grid grid-cols-2 gap-2 mt-4 max-w-xs mx-auto"))
-        [button (("class" . "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded")
-                 ("hx-post" . "/2048/move/up")
-                 ("hx-target" . "#game-container")
-                 ("hx-swap" . "innerHTML"))
+       [.grid.grid-cols-2.gap-2.mt-4.max-w-xs.mx-auto
+        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
+                 (("hx-post" . "/2048/move/up")
+                  ("hx-target" . "#game-container")
+                  ("hx-swap" . "innerHTML"))
          "↑"]
         [div]
-        [button (("class" . "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded")
-                 ("hx-post" . "/2048/move/left")
-                 ("hx-target" . "#game-container")
-                 ("hx-swap" . "innerHTML"))
+        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
+                 (("hx-post" . "/2048/move/left")
+                  ("hx-target" . "#game-container")
+                  ("hx-swap" . "innerHTML"))
          "←"]
-        [button (("class" . "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded")
-                 ("hx-post" . "/2048/move/right")
-                 ("hx-target" . "#game-container")
-                 ("hx-swap" . "innerHTML"))
+        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
+                 (("hx-post" . "/2048/move/right")
+                  ("hx-target" . "#game-container")
+                  ("hx-swap" . "innerHTML"))
          "→"]
         [div]
-        [button (("class" . "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded")
-                 ("hx-post" . "/2048/move/down")
-                 ("hx-target" . "#game-container")
-                 ("hx-swap" . "innerHTML"))
+        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
+                 (("hx-post" . "/2048/move/down")
+                  ("hx-target" . "#game-container")
+                  ("hx-swap" . "innerHTML"))
          "↓"]]]]]])
 
 ;; Routes
