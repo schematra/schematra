@@ -5,6 +5,7 @@
 
  (import scheme)
  (import format
+	 srfi-1
 	 srfi-13
 	 (chicken base)
 	 (chicken string))
@@ -75,6 +76,20 @@
 	  (if id `(("id" . ,id)) '())))
        '()))
 
+ (define (merge-attrs spec-attrs explicit-attrs)
+   (let* ((spec-class (assoc "class" spec-attrs))
+          (explicit-class (assoc "class" explicit-attrs))
+          (merged-class-attr
+           (cond
+            ((and spec-class explicit-class)
+             `(("class" . ,(string-append (cdr spec-class) " " (cdr explicit-class)))))
+            (spec-class `((,spec-class)))
+            (explicit-class `((,explicit-class)))
+            (else '())))
+          (non-class-spec (filter (lambda (attr) (not (string=? (car attr) "class"))) spec-attrs))
+          (non-class-explicit (filter (lambda (attr) (not (string=? (car attr) "class"))) explicit-attrs)))
+     (append merged-class-attr non-class-spec non-class-explicit)))
+
  ;; Generate an HTML tag from an element-spec list.
  ;;
  ;; ELEMENT-SPEC is a list with at least one item that defines a
@@ -102,7 +117,7 @@
 		(pair? (car second-arg))))
 	  ;; merge the two possible attribute lists
 	  (merged-attrs
-	   (if has-explicit-attrs? (append spec-attrs second-arg) spec-attrs))
+	   (if has-explicit-attrs? (merge-attrs spec-attrs second-arg) spec-attrs))
 	  ;; collect the body parts, which can be a string or another
 	  ;; element-spec
 	  (body-parts
