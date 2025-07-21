@@ -11,6 +11,10 @@
   (add-random-tile!)
   (add-random-tile!))
 
+;; TODO: implement random-integer using `randu!` that Returns a random value from a uniform distribution on the interval (0, 1).
+(define (random-integer n)
+  )
+
 ;; Add a random tile (2 or 4) to an empty position
 (define (add-random-tile!)
   (let ((empty-positions (filter (lambda (i) (= (vector-ref game-grid i) 0))
