@@ -139,7 +139,7 @@ Add htmx for dynamic interactions:
 - No session management
 - No middleware system
 - Limited error handling
-- No template engine
+- No template engine (but you can use the included chiccup, a hiccup-like template system)
 - No database integration
 - No security features
 
