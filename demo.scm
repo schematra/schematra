@@ -2,7 +2,18 @@
 (load "chiccup.scm")
 (import schematra chiccup format)
 
-(define welcome-page
+(define (html-layout title body)
+  (ccup/html
+    `[html (lang . "en")
+      [head
+        [meta (charset . "utf-8")]
+        [meta (name . "viewport") (content . "width=device-width, initial-scale=1")]
+        [title ,title]
+        [script (src . "https://cdn.tailwindcss.com")]]
+      [body
+        ,body]]))
+
+(define welcome-page-content
   (ccup/html 
     `[div.min-h-screen.bg-gradient-to-br.from-purple-400.via-pink-500.to-red-500.flex.items-center.justify-center.p-4
       [div.max-w-4xl.mx-auto.text-center.text-white
@@ -28,6 +39,9 @@
           [button.bg-yellow-400.hover:bg-yellow-300.text-black.font-bold.py-4.px-8.rounded-full.text-lg.transform.hover:scale-105.transition-all.duration-200.shadow-lg
             "Start Being Silly"]
           [p.text-sm.opacity-70 "Warning: May cause uncontrollable eye-rolling"]]]]))
+
+(define welcome-page
+  (html-layout "SillyBot AI - The Silliest AI Ever" welcome-page-content))
 
 (get "/"
      (lambda (request #!optional params)
