@@ -22,11 +22,13 @@
   schematra-start
   ) ; end export list
 
+ (import scheme)
  (import
   spiffy
   format
   intarweb
   uri-common
+  srfi-1
   srfi-13
   srfi-18)
 
@@ -99,11 +101,11 @@
                  (cond
                   [(null? subtrees)
                    ;; No matching subtree, create new one
-                   (append result (list (add-resource remaining-path (list (car remaining-path) #f) handler)))]
+                   (append result (list (add-resource! remaining-path (list (car remaining-path) #f) handler)))]
                   [(and (list? (car subtrees)) (string=? (car remaining-path) (caar subtrees)))
                    ;; Found matching subtree
                    (append result 
-                           (list (add-resource remaining-path (car subtrees) handler))
+                           (list (add-resource! remaining-path (car subtrees) handler))
                            (cdr subtrees))]
                   [else
                    ;; Keep looking
@@ -112,7 +114,7 @@
           [else
            (if (null? remaining-path)
                (list target-segment handler)
-               (list target-segment #f (add-resource remaining-path (list (car remaining-path) #f) handler)))]))))
+               (list target-segment #f (add-resource! remaining-path (list (car remaining-path) #f) handler)))]))))
 
  ;; empty routes. each verb has a list of routes
  (define get-routes (make-path-tree))
