@@ -150,14 +150,21 @@
  ;; Handler Function Signature:
  ;;   The handler function must accept two arguments:
  ;;     request: HTTP request object containing headers, method, URI, etc.
- ;;     params: association list of path parameters (optional, can be empty)
+ ;;     params: association list containing both path parameters and query parameters
  ;;
- ;; Path Parameters:
- ;;   URL segments starting with ':' become parameters. For example:
- ;;     - Route "/users/:id" matches "/users/123" 
- ;;     - The params argument will be '(("id" . "123"))
- ;;     - Route "/users/:user-id/posts/:post-id" matches "/users/alice/posts/42"
- ;;     - The params argument will be '(("user-id" . "alice") ("post-id" . "42"))
+ ;; Parameters:
+ ;;   The params argument contains two types of parameters:
+ ;;   1. Path Parameters (string keys): URL segments starting with ':' become parameters
+ ;;      - Route "/users/:id" matches "/users/123" 
+ ;;      - Contributes '(("id" . "123")) to params
+ ;;      - Route "/users/:user-id/posts/:post-id" matches "/users/alice/posts/42"
+ ;;      - Contributes '(("user-id" . "alice") ("post-id" . "42")) to params
+ ;;   2. Query Parameters (symbol keys): URL query string parameters
+ ;;      - Request "/users/123?format=json&limit=10"
+ ;;      - Contributes '((format . "json") (limit . "10")) to params
+ ;;   
+ ;;   Note: Path parameters use string keys, query parameters use symbol keys.
+ ;;   This allows you to distinguish between the two types when processing params.
  ;;
  ;; Handler Return Value:
  ;;   The handler should return a string (which becomes the response body with 200 OK status)
@@ -184,9 +191,19 @@
      (set! get-routes
 	   (add-resource! (normalize-path raw-uri-path) get-routes body))))
 
- ;; Register a POST route handler  
- ;; path: string representing the URL path (e.g., "/users", "/api/posts")
- ;; body: procedure that takes a request object and optional params, returns response
+ ;; Register a POST route handler
+ ;;
+ ;; Registers a handler function to respond to HTTP POST requests for a specific path.
+ ;; The path can include parameter segments prefixed with ':' to capture dynamic values.
+ ;;
+ ;; Parameters:
+ ;;   path: string - URL path pattern (e.g., "/users", "/api/posts", "/users/:id")
+ ;;   body: procedure - Handler function that processes the request
+ ;;
+ ;; Handler Function:
+ ;;   See the 'get' function documentation for complete details on handler function
+ ;;   signature, path parameters, query parameters, and return values. POST handlers
+ ;;   work identically to GET handlers in terms of parameter handling and responses.
  (define (post path body)
    (let ((raw-uri-path (uri-path (uri-reference path))))
      (set! post-routes
