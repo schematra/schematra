@@ -11,9 +11,9 @@
   (add-random-tile!)
   (add-random-tile!))
 
-;; TODO: implement random-integer using `randu!` that Returns a random value from a uniform distribution on the interval (0, 1).
+;; Generate a random integer from 0 to n-1 using randu!
 (define (random-integer n)
-  )
+  (inexact->exact (floor (* (randu!) n))))
 
 ;; Add a random tile (2 or 4) to an empty position
 (define (add-random-tile!)
