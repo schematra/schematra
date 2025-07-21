@@ -14,6 +14,12 @@
        [script (("src" . "https://cdn.tailwindcss.com"))]]
       [body ,body]]))
 
+(define (lookup key alist)
+  (let ((pair (assoc key alist)))
+    (if pair
+        (cdr pair)
+        #f)))
+
 ;; Game state - 4x4 grid initialized with zeros
 (define game-grid (make-vector 16 0))
 
