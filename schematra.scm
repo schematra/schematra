@@ -36,6 +36,8 @@
   srfi-13
   srfi-18)
 
+ (define schematra-default-vhost ".*")
+
  ;; Default handler for unmatched routes
  ;; 
  ;; This handler is called when no specific route matches the incoming request.
@@ -51,6 +53,12 @@
  ;;   A string containing the default welcome message
  (define (schematra-default-handler _request #!optional params)
    "Welcome to Schematra, Sinatra's weird friend.")
+
+ (define (log-err format . rest)
+   (apply log-to (error-log) format rest))
+
+ (define (log-dbg format . rest)
+   (apply log-to (access-log) format rest))
 
  (define (make-path-tree)
    `("/" ,schematra-default-handler))
@@ -123,7 +131,6 @@
  ;; empty routes. each verb has a list of routes
  (define get-routes (make-path-tree))
  (define post-routes (make-path-tree))
- (define schematra-default-vhost ".*")
  (define development-mode? #f)
 
  (define (normalize-path path-list)
@@ -236,15 +243,6 @@
      (send-response
       status: 'error
       body: (format #f "Error: response type not supported (~A)" resp))]))
-
- (define (schematra-request-augment request)
-   request)
-
- (define (log-err format . rest)
-   (apply log-to (error-log) format rest))
-
- (define (log-dbg format . rest)
-   (apply log-to (access-log) format rest))
 
  ;; Extract the request body as a string
  ;;
