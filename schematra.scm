@@ -121,6 +121,7 @@
  (define get-routes (make-path-tree))
  (define post-routes (make-path-tree))
  (define schematra-default-vhost ".*")
+ (define development-mode? #f)
 
  (define (normalize-path path-list)
    (let* ( ;; Ensure path-list is actually a list
@@ -191,7 +192,8 @@
 	    [(eq? method 'POST) post-routes]
 	    [else (error "no handlers for this method")]))
 	  (result (find-resource normalized-path route-handlers)))
-     (format #t "Req: ~A. Path: ~A. Method: ~A\n" request normalized-path method)
+     (if development-mode?
+	 (format #t "Req: ~A. Path: ~A. Method: ~A\n" request normalized-path method))
      (if result 
          (let ((handler (car result))
                (params (cadr result)))
@@ -213,10 +215,13 @@
    (vhost-map
     `((,schematra-default-vhost . ,(lambda (continue) (schematra-router continue))))))
 
- (define (schematra-start #!key (debug? #f) (port 8080))
-   (if debug?
-       ;; start the server inside a thread, to be able to use the nrepl
-       (thread-start!
-	(lambda ()
-	  (start-server port: port)))
+ (define (schematra-start #!key (development? #f) (port 8080) (repl-port: 1234))
+   (if development?
+       (begin
+	 (set! development-mode? #t)
+	 ;; start the server inside a thread, then start the nrepl in port `repl-port`
+	 (thread-start!
+	  (lambda ()
+	    (start-server port: port)))
+	 (nrepl repl-port))
        (start-server port: port))))
