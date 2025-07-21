@@ -2,6 +2,18 @@
 (load "chiccup.scm")
 (import schematra chiccup format srfi-1 random-mtzig)
 
+;; HTML layout function
+(define (html-layout title body)
+  (ccup/html
+   `[html (("lang" . "en"))
+      [head
+       [meta (("charset" . "utf-8"))]
+       [meta (("name" . "viewport") ("content" . "width=device-width, initial-scale=1"))]
+       [title ,title]
+       [script (("src" . "https://unpkg.com/htmx.org@1.9.10"))]
+       [script (("src" . "https://cdn.tailwindcss.com"))]]
+      [body ,body]]))
+
 ;; Game state - 4x4 grid initialized with zeros
 (define game-grid (make-vector 16 0))
 
