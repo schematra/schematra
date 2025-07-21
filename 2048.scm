@@ -115,7 +115,7 @@
   `[.min-h-screen.bg-gradient-to-br.from-blue-400.to-purple-600.flex.items-center.justify-center.p-4
     [.text-center
      [h1.text-4xl.font-bold.text-white.mb-8 "🎮 2048 Game"]
-     [div (("id" . "game-container"))
+     [#game-container
       ,(render-grid)]
      [.mt-8.space-x-4
       [button.bg-green-500.hover:bg-green-600.text-white.font-bold.py-2.px-4.rounded
