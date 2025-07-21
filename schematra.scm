@@ -27,6 +27,7 @@
  (import scheme)
  (import
   (chicken base)
+  (chicken io)
   spiffy
   format
   intarweb
@@ -271,8 +272,7 @@
  (define (request-body-string request)
    (let* ((in-port (request-port request))
 	  (headers (request-headers request))
-	  (content-length-str (header-value 'content-length headers))
-	  (content-length (and content-length-str (string->number content-length-str)))
+	  (content-length (header-value 'content-length headers #f))
 	  (body (if content-length
 		    (read-string content-length in-port)
 		    (read-string #f in-port))))
