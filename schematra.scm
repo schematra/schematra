@@ -1,3 +1,7 @@
+;; Schematra - a very simple web framework for scheme inspired in
+;; Sinatra
+;; Copyright (c) 2025 Rolando Abarca <cpm.rolandoa@gmail.com>
+;;
 ;; This program is free software: you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
 ;; published by the Free Software Foundation, either version 3 of the
@@ -141,7 +145,7 @@
 
  (define (add-resource! path tree handler)
    (if (null? path)
-       tree			       ; Empty path, return tree as-is
+       tree                    ; Empty path, return tree as-is
        (let ((target-segment (car path))
              (remaining-path (cdr path)))
          (cond
@@ -158,7 +162,7 @@
                    (append result (list (add-resource! remaining-path (list (car remaining-path) #f) handler)))]
                   [(and (list? (car subtrees)) (string=? (car remaining-path) (caar subtrees)))
                    ;; Found matching subtree
-                   (append result 
+                   (append result
                            (list (add-resource! remaining-path (car subtrees) handler))
                            (cdr subtrees))]
                   [else
@@ -241,7 +245,7 @@
  (define (get path body)
    (let ((raw-uri-path (uri-path (uri-reference path))))
      (set! get-routes
-	   (add-resource! (normalize-path raw-uri-path) get-routes body))))
+           (add-resource! (normalize-path raw-uri-path) get-routes body))))
 
  ;; Register a POST route handler
  ;;
@@ -259,11 +263,11 @@
  (define (post path body)
    (let ((raw-uri-path (uri-path (uri-reference path))))
      (set! post-routes
-	   (add-resource! (normalize-path raw-uri-path) post-routes body))))
+           (add-resource! (normalize-path raw-uri-path) post-routes body))))
 
  (define (alist? x)
    (and (list? x)
-	(every pair? x)))
+        (every pair? x)))
 
  (define (is-response? list)
    (and
@@ -311,30 +315,30 @@
  ;;             (format "Received: ~A" body))))
  (define (request-body-string request)
    (let* ((in-port (request-port request))
-	  (headers (request-headers request))
-	  (content-length (header-value 'content-length headers #f))
-	  (body (if content-length
-		    (read-string content-length in-port)
-		    (read-string #f in-port))))
+          (headers (request-headers request))
+          (content-length (header-value 'content-length headers #f))
+          (body (if content-length
+                    (read-string content-length in-port)
+                    (read-string #f in-port))))
      body))
 
  (define (schematra-router continue)
    (let* ((request (current-request))
-	  (method (request-method request))
-	  (uri (request-uri request))
-	  (normalized-path (normalize-path (uri-path uri)))
-	  (route-handlers
-	   (cond
-	    [(eq? method 'GET) get-routes]
-	    [(eq? method 'POST) post-routes]
-	    [else (error "no handlers for this method")]))
-	  (result (find-resource normalized-path route-handlers)))
+          (method (request-method request))
+          (uri (request-uri request))
+          (normalized-path (normalize-path (uri-path uri)))
+          (route-handlers
+           (cond
+            [(eq? method 'GET) get-routes]
+            [(eq? method 'POST) post-routes]
+            [else (error "no handlers for this method")]))
+          (result (find-resource normalized-path route-handlers)))
      (if development-mode?
-	 (log-to (access-log) "Req: ~A. Path: ~A. Method: ~A" request normalized-path method))
+         (log-to (access-log) "Req: ~A. Path: ~A. Method: ~A" request normalized-path method))
      (if result 
          (let* ((handler (car result))
-		(route-params (cadr result))
-		(params (append route-params (uri-query uri))))
+                (route-params (cadr result))
+                (params (append route-params (uri-query uri))))
            (parse-response (handler request params)))
          (continue))))
 
@@ -389,11 +393,11 @@
    (error-log ##sys#standard-error)
    (if development?
        (begin
-	 (import nrepl)
-	 (set! development-mode? #t)
-	 ;; start the server inside a thread, then start the nrepl in port `repl-port`
-	 (thread-start!
-	  (lambda ()
-	    (start-server port: port)))
-	 (nrepl repl-port))
+         (import nrepl)
+         (set! development-mode? #t)
+         ;; start the server inside a thread, then start the nrepl in port `repl-port`
+         (thread-start!
+          (lambda ()
+            (start-server port: port)))
+         (nrepl repl-port))
        (start-server port: port))))

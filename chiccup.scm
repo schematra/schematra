@@ -1,7 +1,25 @@
+;; Chiccup - part of Schematra. Chiccup is a very simple templating
+;; system inspired in both haml and hiccup.
+;; Copyright (c) 2025 Rolando Abarca <cpm.rolandoa@gmail.com>
+;;
+;; This program is free software: you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License as
+;; published by the Free Software Foundation, either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+;; General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program. If not, see
+;; <https://www.gnu.org/licenses/>.
+
 (module chiccup
  (
   ccup/html
- ) ;; end export list
+  ) ;; end export list
 
  (import scheme)
  (import format
@@ -122,7 +140,7 @@
 	  ;; element-spec
 	  (body-parts
 	   (if has-explicit-attrs? 
-	       (cddr element-spec)  ; skip selector and attrs, take rest as body
+	       (cddr element-spec) ; skip selector and attrs, take rest as body
 	       (cdr element-spec))) ; skip selector, take rest as body
 	  ;; build the final attribute string
 	  (attr-str (if (null? merged-attrs)
