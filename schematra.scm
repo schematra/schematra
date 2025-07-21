@@ -215,6 +215,37 @@
    (vhost-map
     `((,schematra-default-vhost . ,(lambda (continue) (schematra-router continue))))))
 
+ ;; Start the Schematra web server
+ ;;
+ ;; This function starts the Spiffy web server with Schematra routing enabled.
+ ;; It supports both production and development modes with different behaviors.
+ ;;
+ ;; Parameters:
+ ;;   development?: boolean - Enable development mode (default: #f)
+ ;;   port: integer - HTTP server port (default: 8080)  
+ ;;   repl-port: integer - REPL port for development mode (default: 1234)
+ ;;
+ ;; Development Mode:
+ ;;   When development? is #t, the server runs in a separate thread and starts
+ ;;   an nREPL server on the specified repl-port for interactive development.
+ ;;   This allows you to connect with a REPL client and modify routes/handlers
+ ;;   while the server is running.
+ ;;
+ ;;   IMPORTANT: Development mode requires the 'nrepl' egg to be installed:
+ ;;     $ chicken-install nrepl
+ ;;
+ ;;   Development mode also enables request logging to stdout.
+ ;;
+ ;; Production Mode:
+ ;;   When development? is #f (default), starts the server normally in the
+ ;;   current thread without REPL access.
+ ;;
+ ;; Example usage:
+ ;;   ;; Production mode
+ ;;   (schematra-start port: 3000)
+ ;;
+ ;;   ;; Development mode with custom ports
+ ;;   (schematra-start development?: #t port: 8080 repl-port: 1234)
  (define (schematra-start #!key (development? #f) (port 8080) (repl-port: 1234))
    (if development?
        (begin
