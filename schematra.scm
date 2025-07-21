@@ -246,9 +246,10 @@
  ;;
  ;;   ;; Development mode with custom ports
  ;;   (schematra-start development?: #t port: 8080 repl-port: 1234)
- (define (schematra-start #!key (development? #f) (port 8080) (repl-port: 1234))
+ (define (schematra-start #!key (development? #f) (port 8080) (repl-port 1234))
    (if development?
        (begin
+	 (import nrepl)
 	 (set! development-mode? #t)
 	 ;; start the server inside a thread, then start the nrepl in port `repl-port`
 	 (thread-start!
