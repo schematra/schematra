@@ -18,6 +18,7 @@
   schematra-default-vhost
   ;; Procedures
   get post
+  log-err log-dbg
   schematra-install
   schematra-start
   ) ; end export list
@@ -237,6 +238,12 @@
  (define (schematra-request-augment request)
    request)
 
+ (define (log-err format . rest)
+   (apply log-to (error-log) format rest))
+
+ (define (log-dbg format . rest)
+   (apply log-to (access-log) format rest))
+
  (define (schematra-router continue)
    (let* ((request (current-request))
 	  (method (request-method request))
@@ -249,7 +256,7 @@
 	    [else (error "no handlers for this method")]))
 	  (result (find-resource normalized-path route-handlers)))
      (if development-mode?
-	 (format #t "Req: ~A. Path: ~A. Method: ~A\n" request normalized-path method))
+	 (log-to (access-log) "Req: ~A. Path: ~A. Method: ~A" request normalized-path method))
      (if result 
          (let* ((handler (car result))
 		(route-params (cadr result))
@@ -304,6 +311,8 @@
  ;;   ;; Development mode with custom ports
  ;;   (schematra-start development?: #t port: 8080 repl-port: 1234)
  (define (schematra-start #!key (development? #f) (port 8080) (repl-port 1234))
+   (access-log ##sys#standard-output)
+   (error-log ##sys#standard-error)
    (if development?
        (begin
 	 (import nrepl)
