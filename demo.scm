@@ -1,9 +1,13 @@
 (load "schematra.scm")
-(import schematra format)
+(load "chiccup.scm")
+(import schematra chiccup format)
+
+(define welcome-page
+  (ccup/html `[h1 "hello"]))
 
 (get "/"
      (lambda (request #!optional params)
-       "welcome to schematra"))
+       (ccup/html `[h1#hero "hey, welcome"])))
 
 (define (lookup key alist)
   (let ((pair (assoc key alist)))
