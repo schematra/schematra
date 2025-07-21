@@ -1,6 +1,6 @@
 (load "schematra.scm")
 (load "chiccup.scm")
-(import schematra chiccup format srfi-1)
+(import schematra chiccup format srfi-1 (chicken random))
 
 ;; Game state - 4x4 grid initialized with zeros
 (define game-grid (make-vector 16 0))
