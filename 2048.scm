@@ -12,8 +12,9 @@
   (add-random-tile!))
 
 ;; Generate a random integer from 0 to n-1 using randu!
+(define rand-state (init))
 (define (random-integer n)
-  (inexact->exact (floor (* (randu!) n))))
+  (inexact->exact (floor (* (randu! rand-state) n))))
 
 ;; Add a random tile (2 or 4) to an empty position
 (define (add-random-tile!)
