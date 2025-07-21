@@ -83,8 +83,8 @@
            (cond
             ((and spec-class explicit-class)
              `(("class" . ,(string-append (cdr spec-class) " " (cdr explicit-class)))))
-            (spec-class `((,spec-class)))
-            (explicit-class `((,explicit-class)))
+            (spec-class `(,spec-class))
+            (explicit-class `(,explicit-class))
             (else '())))
           (non-class-spec (filter (lambda (attr) (not (string=? (car attr) "class"))) spec-attrs))
           (non-class-explicit (filter (lambda (attr) (not (string=? (car attr) "class"))) explicit-attrs)))
