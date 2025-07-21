@@ -9,9 +9,9 @@
 	 (chicken base)
 	 (chicken string))
 
+ ;; Return a list of substrings of STR split on '.'.
+ ;; e.g. "foo.bar" => '("foo" "bar")
  (define (split-on-dot str)
-   "Return a list of substrings of STR split on '.'.
-   e.g. \"foo.bar\" => '(\"foo\" \"bar\")"
    (let ((len (string-length str)))
      (let loop ((i 0) (start 0) (acc '()))
        (if (= i len)
@@ -20,16 +20,16 @@
 	       (loop (add1 i) (add1 i) (cons (substring str start i) acc))
 	       (loop (add1 i) start acc))))))
 
+ ;; Parse a CSS-style selector string or symbol into parts (tag, classes, id)
+ ;;
+ ;; Examples:
+ ;; (parse-selector "div") => ("div" () #f)
+ ;; (parse-selector 'div.cls) => ("div" ("cls") #f)
+ ;; (parse-selector ".cls") => ("div" ("cls") #f)
+ ;; (parse-selector "div#id") => ("div" () "id")
+ ;; (parse-selector "#id") => ("div" () "id")
+ ;; Note: Following CSS conventions, ID (#id) must come last in the selector.
  (define (parse-selector selector)
-   "Parse a CSS-style selector string or symbol into parts (tag, classes, id)
-   
-   Examples:
-   (parse-selector \"div\") => (\"div\" () #f)
-   (parse-selector 'div.cls) => (\"div\" (\"cls\") #f)
-   (parse-selector \".cls\") => (\"div\" (\"cls\") #f)
-   (parse-selector \"div#id\") => (\"div\" () \"id\")
-   (parse-selector \"#id\") => (\"div\" () \"id\")
-   Note: Following CSS conventions, ID (#id) must come last in the selector."
    (let* ((selector-str (if (symbol? selector)
                             (symbol->string selector)
                             selector))
@@ -50,19 +50,19 @@
 		     (else first-part))))
      (list tag-name class-list id-str)))
 
+ ;; Convert a parsed selector specification into an attribute alist.
+ ;;
+ ;; SPEC-LIST should be a list of the form (tag classes id) where:
+ ;;   - tag is a string representing the HTML tag name
+ ;;   - classes is a list of strings representing CSS classes
+ ;;   - id is a string or #f representing the element ID
+ ;;
+ ;; Returns an alist of (attr-name . attr-value) pairs suitable for HTML element
+ ;; attributes. Empty when given invalid input.
+ ;;
+ ;; Example: '("div" ("btn" "primary") "submit") =>
+ ;;          '(("class" . "btn primary") ("id" . "submit"))
  (define (build-attrs spec-list)
-   "Convert a parsed selector specification into an attribute alist.
-   
-   SPEC-LIST should be a list of the form (tag classes id) where:
-     - tag is a string representing the HTML tag name
-     - classes is a list of strings representing CSS classes
-     - id is a string or #f representing the element ID
-   
-   Returns an alist of (attr-name . attr-value) pairs suitable for HTML element
-   attributes. Empty when given invalid input.
-   
-   Example: '(\"div\" (\"btn\" \"primary\") \"submit\") =>
-            '((\"class\" . \"btn primary\") (\"id\" . \"submit\"))"
    (if (= (length spec-list) 3)
        (let ((classes (cadr spec-list))
 	     (id (caddr spec-list)))
@@ -75,21 +75,21 @@
 	  (if id `(("id" . ,id)) '())))
        '()))
 
+ ;; Generate an HTML tag from an element-spec list.
+ ;;
+ ;; ELEMENT-SPEC is a list with at least one item that defines a
+ ;; css-inspired selector. If the tag name is not specified it's assumed
+ ;; to be a `div`. The second element can be an alist with the extra
+ ;; attributes and the last element is expected to be the body, which can
+ ;; be nested element-specs.
+ ;;
+ ;; Examples:
+ ;; (ccup/html `[.h-4.w-4 "content"]) -> <div class="h-4 w-4">content</div>
+ ;; (ccup/html
+ ;;   `[ul#foo ({ hx-post . "/my/endpoint"})
+ ;;     [li "some item"]])
+ ;; -> <ul id="foo" hx-post="/my/endpoint"><li>some item</li></ul>
  (define (ccup/html element-spec)
-   "Generate an HTML tag from an element-spec list.
-   
-   ELEMENT-SPEC is a list with at least one item that defines a
-   css-inspired selector. If the tag name is not specified it's assumed
-   to be a `div`. The second element can be an alist with the extra
-   attributes and the last element is expected to be the body, which can
-   be nested element-specs.
-
-   Examples:
-   (ccup/html `[.h-4.w-4 \"content\"]) -> <div class=\"h-4 w-4\">content</div>
-   (ccup/html
-     `[ul#foo ({ hx-post . \"/my/endpoint\"})
-       [li \"some item\"]])
-   -> <ul id=\"foo\" hx-post=\"/my/endpoint\"><li>some item</li></ul>"
    (let* ( ;; parse the selector
 	  (parsed (parse-selector (car element-spec)))
 	  (tag (car parsed))
