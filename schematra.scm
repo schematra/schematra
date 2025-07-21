@@ -19,6 +19,7 @@
   ;; Procedures
   get post
   log-err log-dbg
+  request-body-string
   schematra-install
   schematra-start
   ) ; end export list
@@ -243,6 +244,16 @@
 
  (define (log-dbg format . rest)
    (apply log-to (access-log) format rest))
+
+ (define (request-body-string request)
+   (let* ((in-port (request-port request))
+	  (headers (request-headers request))
+	  (content-length-str (header-value 'content-length headers))
+	  (content-length (and content-length-str (string->number content-length-str)))
+	  (body (if content-length
+		    (read-string content-length in-port)
+		    (read-string #f in-port))))
+     body))
 
  (define (schematra-router continue)
    (let* ((request (current-request))
