@@ -1,21 +1,24 @@
 # Schematra
 
-A minimal web framework for CHICKEN Scheme, inspired by Sinatra. Schematra is currently a toy project created for learning purposes, but hopefully it will grow into something more useful over time.
+![Schematra Logo](logo.png)
+
+A minimal web framework for [CHICKEN Scheme](https://call-cc.org/), inspired by [Sinatra](https://sinatrarb.com/). Schematra is currently an early exploration project created for learning purposes, but hopefully it will grow into something more useful over time.
 
 ## Why Schematra?
 
 I created Schematra because I wanted to:
 
-- **Learn Scheme better**: Building a web framework is a great way to explore a language's capabilities and idioms
+- **Improve my knowledge of scheme**: Building a web framework is a great way to explore a language's capabilities and idioms
 - **Create something simple**: Most web frameworks are complex beasts. Schematra aims to be minimal and understandable
-- **Enable modern web development**: The framework is designed to work well with modern tools like [Tailwind CSS](https://tailwindcss.com/) and [htmx](https://htmx.org/), making it easy to build interactive web applications without heavy JavaScript frameworks
+- **Enable modern web development**: The framework is designed to work well with modern tools like [Tailwind CSS](https://tailwindcss.com/) and [htmx](https://htmx.org/), making it easy to build interactive web applications without heavy JavaScript frameworks. Although tbh this is completely agnostic to how the framework works, it's what most of my examples will use.
 
 ## Features
 
-- Simple route definition with `get` and `post` macros
+- Simple route definition with `get` and `post` functions
 - URL parameter extraction (e.g., `/users/:id`)
 - Request body parsing
-- Development mode with REPL integration
+- Development mode with REPL integration (leveraging emacs `run-scheme`)
+- Very simple [hiccup](https://github.com/weavejester/hiccup) inspired template system
 - Built on top of the solid [Spiffy](http://wiki.call-cc.org/eggref/5/spiffy) web server
 
 ## Installation
@@ -30,6 +33,13 @@ For development mode, you'll also need:
 
 ```bash
 chicken-install nrepl
+```
+
+Next step would be to build schematra & chiccup:
+
+```bash
+csc -s schematra.scm -j
+csc -s chiccup.scm -j
 ```
 
 ## Quick Start
@@ -77,13 +87,20 @@ This starts the web server in a background thread and opens an nREPL on port 123
 
 ## Route Parameters
 
-Schematra supports URL parameters using the `:parameter` syntax:
+Schematra supports URL parameters using the `:parameter` syntax, as well as query params:
 
 ```scheme
+(define (lookup key alist)
+  (let ((pair (assoc key alist)))
+    (if pair
+        (cdr pair)
+        #f)))
+
 (get "/users/:user-id/posts/:post-id"
      (lambda (req params)
-       (let ((user-id (alist-ref "user-id" params equal?))
-             (post-id (alist-ref "post-id" params equal?)))
+       (let ((user-id (lookup "user-id" params))
+             (post-id (lookup "post-id" params))
+			 (q       (lookup 'q params))) ;; query params use symbol params
          (format "User: ~A, Post: ~A" user-id post-id))))
 ```
 
@@ -100,14 +117,10 @@ Include Tailwind via CDN in your HTML responses:
 ```scheme
 (get "/" 
      (lambda (req params)
-       "<html>
-         <head>
-           <script src=\"https://cdn.tailwindcss.com\"></script>
-         </head>
-         <body class=\"bg-gray-100 p-8\">
-           <h1 class=\"text-3xl font-bold text-blue-600\">Hello, Tailwind!</h1>
-         </body>
-       </html>"))
+	   (ccup/html
+	     `[html
+		    [head [script (("src" . "https://cdn.tailwindcss.com"))]]
+			[body.bg-gray-100.p8 [h1.text-3xl.font-bold.text-blue-600 "Hello, Tailwind!]])))
 ```
 
 ### htmx
@@ -117,30 +130,28 @@ Add htmx for dynamic interactions:
 ```scheme
 (get "/" 
      (lambda (req params)
-       "<html>
-         <head>
-           <script src=\"https://unpkg.com/htmx.org@1.9.10\"></script>
-         </head>
-         <body>
-           <button hx-get=\"/clicked\" hx-target=\"#result\">Click me!</button>
-           <div id=\"result\"></div>
-         </body>
-       </html>"))
+	   (ccup/html
+	     `[html
+	        [head [script (("src" . "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]]
+		      [body
+		        [button (("hx-get" . "/clicked") . ("hx-target" . "#result")) "Click me!"]
+			    [\#result]]]))
 
 (get "/clicked"
      (lambda (req params)
-       "<p>Button was clicked!</p>"))
+	   (ccup/html `[p "Button was clicked!"])))
 ```
 
 ## Current Status
 
-⚠️ **This is a toy project!** Schematra is still in early development and should not be used for production applications. It's missing many features you'd expect from a mature web framework:
+**This is a toy project!** Schematra is still in early development and should not be used for production applications. It's missing many features you'd expect from a mature web framework:
 
 - No session management
 - No middleware system
 - Limited error handling
-- No template engine (but you can use the included chiccup, a hiccup-like template system)
-- No database integration
+- No template engine (but you can use the included chiccup, a [hiccup](https://github.com/weavejester/hiccup)-inspired template system)
+- No database integration (but you can use any [database egg](https://eggs.call-cc.org/5/#db))
+- No background job system
 - No security features
 
 However, it's perfect for:
