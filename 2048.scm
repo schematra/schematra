@@ -86,19 +86,15 @@
 
 ;; Move tiles left in a row
 (define (move-row-left row)
-  (let* ((non-zero (filter (lambda (x) (> x 0)) row))
-         (merged '())
-         (i 0))
-    (let loop ((tiles non-zero) (result '()) (skip-next? #f))
-      (cond
-        ((null? tiles) 
-         (append (reverse result) (make-list (- 4 (length result)) 0)))
-        ((or skip-next? (null? (cdr tiles)))
-         (loop (cdr tiles) (cons (car tiles) result) #f))
-        ((= (car tiles) (cadr tiles))
-         (loop (cddr tiles) (cons (* 2 (car tiles)) result) #f))
-        (else
-         (loop (cdr tiles) (cons (car tiles) result) #f))))))
+  (let* ((non-zero (filter positive? row))
+         (merged (let loop ((tiles non-zero) (acc '()))
+                   (cond
+                     ((null? tiles) (reverse acc))
+                     ((null? (cdr tiles)) (reverse (cons (car tiles) acc)))
+                     ((= (car tiles) (cadr tiles))
+                      (loop (cddr tiles) (cons (* 2 (car tiles)) acc)))
+                     (else (loop (cdr tiles) (cons (car tiles) acc)))))))
+    (append merged (make-list (- 4 (length merged)) 0))))
 
 ;; Move tiles in specified direction
 (define (move-tiles direction)
