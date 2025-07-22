@@ -1,2 +1,4 @@
 .aider*
 *~
+*.import.scm
+*.so
