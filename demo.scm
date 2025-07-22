@@ -1,6 +1,6 @@
 (load "schematra.scm")
 (load "chiccup.scm")
-(import schematra chiccup format)
+(import schematra chiccup format intarweb)
 
 (define (html-layout title body)
   (ccup/html
@@ -58,6 +58,12 @@
 	     (q       (lookup 'kk params)))
 	 (log-dbg "[DBG] params: ~A" params)
          (format "User: ~A, Post: ~A, q: ~A\n" user-id post-id q))))
+
+(post "/test"
+      (lambda (request params)
+	(let ((body (request-body-string request))
+	      (content-type (header-value 'content-type (request-headers request))))
+	  (format "Body: ~A; content-type: ~A" body content-type))))
 
 (schematra-install)
 (schematra-start development?: #t)
