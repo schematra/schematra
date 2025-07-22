@@ -117,12 +117,12 @@ Schematra plays nicely with modern web development tools:
 Include Tailwind via CDN in your HTML responses:
 
 ```scheme
-(get "/" 
+(get "/tw-demo"
      (lambda (req params)
-	   (ccup/html
-	     `[html
-		    [head [script (("src" . "https://cdn.tailwindcss.com"))]]
-			[body.bg-gray-100.p8 [h1.text-3xl.font-bold.text-blue-600 "Hello, Tailwind!]])))
+       (ccup/html
+	`[html
+	  [head [script (("src" . "https://cdn.tailwindcss.com"))]]
+	  [body.bg-gray-100.p-8 [h1.text-3xl.font-bold.text-blue-600 "Hello, Tailwind!"]]])))
 ```
 
 ### htmx
