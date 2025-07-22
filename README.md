@@ -70,7 +70,7 @@ Here's a simple "Hello World" application:
 Save this as `app.scm` and run:
 
 ```bash
-csi -s app.scm
+csi app.scm
 ```
 
 Visit `http://localhost:8080` to see your application running.
@@ -83,7 +83,9 @@ For interactive development, start the server in development mode:
 (schematra-start development?: #t port: 8080 repl-port: 1234)
 ```
 
-This starts the web server in a background thread and opens an nREPL on port 1234. You can connect with your favorite Scheme editor or use `telnet localhost 1234` for a simple REPL session.
+This starts the web server in a background thread and opens an NREPL on port 1234. You can connect with your favorite Scheme editor or use `nc localhost 1234` for a simple REPL session.
+
+For a more elegant environment, you can use emacs `run-scheme` by running `C-u M-x run-scheme RET nc localhost 1234`.
 
 ## Route Parameters
 
