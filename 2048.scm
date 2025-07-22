@@ -1,5 +1,3 @@
-(load "schematra.scm")
-(load "chiccup.scm")
 (import
  format
  srfi-1
