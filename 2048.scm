@@ -140,38 +140,28 @@
 
 ;; Game page content
 (define game-2048-content
-  `[.min-h-screen.bg-gradient-to-br.from-blue-400.to-purple-600.flex.items-center.justify-center.p-4
+  `[.min-h-screen.bg-gradient-to-br.from-blue-400.to-purple-600.flex.items-center.justify-center.p-4 (("hx-target" . "#game-container") ("hx-swap" . "innerHTML"))
     [.text-center
      [h1.text-4xl.font-bold.text-white.mb-8 "🎮 2048 Game"]
      [\#game-container ,(render-grid)]
      [.mt-8.space-x-4
       [button.bg-green-500.hover:bg-green-600.text-white.font-bold.py-2.px-4.rounded
-               (("hx-post" . "/2048/new-game")
-                ("hx-target" . "#game-container")
-                ("hx-swap" . "innerHTML"))
+       (("hx-post" . "/2048/new-game"))
        "New Game"]
       [.mt-4.text-white
        [p "Use arrow keys or buttons to move tiles"]
        [.grid.grid-cols-2.gap-2.mt-4.max-w-xs.mx-auto
         [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded.col-span-2
-                 (("hx-post" . "/2048/move/up")
-                  ("hx-target" . "#game-container")
-                  ("hx-swap" . "innerHTML"))
+         (("hx-post" . "/2048/move/up"))
          "↑"]
         [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
-                 (("hx-post" . "/2048/move/left")
-                  ("hx-target" . "#game-container")
-                  ("hx-swap" . "innerHTML"))
+         (("hx-post" . "/2048/move/left"))
          "←"]
         [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
-                 (("hx-post" . "/2048/move/right")
-                  ("hx-target" . "#game-container")
-                  ("hx-swap" . "innerHTML"))
+         (("hx-post" . "/2048/move/right"))
          "→"]
         [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded.col-span-2
-                 (("hx-post" . "/2048/move/down")
-                  ("hx-target" . "#game-container")
-                  ("hx-swap" . "innerHTML"))
+         (("hx-post" . "/2048/move/down"))
          "↓"]]]]]])
 
 ;; Routes
