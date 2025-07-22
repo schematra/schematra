@@ -1,5 +1,3 @@
-(load "schematra.scm")
-(load "chiccup.scm")
 (import schematra chiccup format intarweb)
 
 (define (html-layout title body)
@@ -64,6 +62,19 @@
 	(let ((body (request-body-string request))
 	      (content-type (header-value 'content-type (request-headers request))))
 	  (format "Body: ~A; content-type: ~A" body content-type))))
+
+(get "/htmx-demo"
+     (lambda (req params)
+       (ccup/html
+	`[html
+	  [head [script (("src" . "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]]
+	  [body
+	   [button (("hx-get" . "/clicked") ("hx-target" . "#result")) "Click me!"]
+	   [\#result]]])))
+
+(get "/clicked"
+     (lambda (req params)
+       (ccup/html `[p "Button was clicked!"])))
 
 (schematra-install)
 (schematra-start development?: #t)

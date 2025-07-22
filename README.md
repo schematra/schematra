@@ -38,8 +38,8 @@ chicken-install nrepl
 Next step would be to build schematra & chiccup:
 
 ```bash
-csc -s schematra.scm -j
-csc -s chiccup.scm -j
+csc -s schematra.scm -j schematra
+csc -s chiccup.scm -j chiccup
 ```
 
 ## Quick Start
@@ -128,18 +128,18 @@ Include Tailwind via CDN in your HTML responses:
 Add htmx for dynamic interactions:
 
 ```scheme
-(get "/" 
+(get "/htmx-demo"
      (lambda (req params)
-	   (ccup/html
-	     `[html
-	        [head [script (("src" . "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]]
-		      [body
-		        [button (("hx-get" . "/clicked") . ("hx-target" . "#result")) "Click me!"]
-			    [\#result]]]))
+       (ccup/html
+	`[html
+	  [head [script (("src" . "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]]
+	  [body
+	   [button (("hx-get" . "/clicked") ("hx-target" . "#result")) "Click me!"]
+	   [\#result]]])))
 
 (get "/clicked"
      (lambda (req params)
-	   (ccup/html `[p "Button was clicked!"])))
+       (ccup/html `[p "Button was clicked!"])))
 ```
 
 ## Current Status
