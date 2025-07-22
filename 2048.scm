@@ -1,6 +1,11 @@
 (load "schematra.scm")
 (load "chiccup.scm")
-(import schematra chiccup format srfi-1 random-mtzig)
+(import
+ format
+ srfi-1
+ random-mtzig
+ schematra
+ chiccup)
 
 ;; HTML layout function
 (define (html-layout title body)
@@ -70,7 +75,7 @@
 
 ;; Render a single tile
 (define (render-tile value)
-  `[div (("class" . ,(string-append "w-16 h-16 rounded-lg flex items-center justify-center font-bold text-lg " (tile-color value))))
+  `[.w-16.h-16.rounded-lg.flex.items-center.justify-center.font-bold.text-lg (("class" . ,(tile-color value)))
     ,(if (= value 0) "" (number->string value))])
 
 ;; Render the game grid
@@ -138,8 +143,7 @@
   `[.min-h-screen.bg-gradient-to-br.from-blue-400.to-purple-600.flex.items-center.justify-center.p-4
     [.text-center
      [h1.text-4xl.font-bold.text-white.mb-8 "🎮 2048 Game"]
-     [div (("id" . "game-container"))
-      ,(render-grid)]
+     [\#game-container ,(render-grid)]
      [.mt-8.space-x-4
       [button.bg-green-500.hover:bg-green-600.text-white.font-bold.py-2.px-4.rounded
                (("hx-post" . "/2048/new-game")
