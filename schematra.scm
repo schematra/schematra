@@ -330,6 +330,55 @@
  (define cookies (make-parameter #f))
  (define session (make-parameter #f))
 
+ ;; Set a cookie to be sent in the HTTP response
+ ;;
+ ;; This function queues a cookie to be included in the Set-Cookie headers of the
+ ;; current HTTP response. Cookies set with this function will be sent to the client
+ ;; and stored in their browser according to the specified attributes.
+ ;;
+ ;; Parameters:
+ ;;   key: string - The cookie name/key
+ ;;   val: string - The cookie value
+ ;;
+ ;; Keyword Parameters:
+ ;;   path: uri-reference - URL path where the cookie is valid (default: "/")
+ ;;         The cookie will only be sent for requests matching this path prefix.
+ ;;         Examples: "/" (entire site), "/admin" (admin section only)
+ ;;
+ ;;   max-age: string or #f - Cookie lifetime in seconds (default: #f for session cookie)
+ ;;            If specified, cookie expires after this many seconds.
+ ;;            If #f, cookie expires when browser session ends.
+ ;;            Examples: "3600" (1 hour), "86400" (1 day), "0" (delete immediately)
+ ;;
+ ;;   secure: boolean - Whether cookie should only be sent over HTTPS (default: #f)
+ ;;           When #t, cookie will only be transmitted over secure connections.
+ ;;           Should be #t for sensitive data in production.
+ ;;
+ ;;   http-only: boolean - Whether cookie should be inaccessible to JavaScript (default: #f)
+ ;;              When #t, prevents client-side scripts from accessing the cookie,
+ ;;              providing protection against XSS attacks.
+ ;;
+ ;; Behavior:
+ ;;   - Must be called within a request handler context where cookies parameter is initialized
+ ;;   - Silently fails if called outside of request context (when cookies is #f)
+ ;;   - Multiple calls with same key will overwrite previous value
+ ;;   - Cookies are automatically included in response headers by the router
+ ;;
+ ;; Example usage:
+ ;;   ;; Simple session cookie
+ ;;   (cookie-set! "user_id" "12345")
+ ;;
+ ;;   ;; Persistent cookie with 1 day expiration
+ ;;   (cookie-set! "preferences" "theme=dark" max-age: "86400")
+ ;;
+ ;;   ;; Secure authentication cookie
+ ;;   (cookie-set! "auth_token" token-value 
+ ;;                secure: #t 
+ ;;                http-only: #t 
+ ;;                max-age: "3600")
+ ;;
+ ;;   ;; Delete a cookie (set max-age to 0)
+ ;;   (cookie-set! "old_cookie" "" max-age: "0")
  (define (cookie-set! key val #!key (path (uri-reference "/")) (max-age #f) (secure #f) (http-only #f))
    (if (hash-table? (cookies))
        (begin
