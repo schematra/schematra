@@ -20,9 +20,11 @@
  ( ;; Parameters
   schematra-default-handler
   schematra-default-vhost
+  schematra-cookie-key
   ;; Procedures
   get post
   log-err log-dbg
+  cookie-set! cookie-ref
   request-body-string
   schematra-install
   schematra-start
@@ -38,7 +40,8 @@
   uri-common
   srfi-1
   srfi-13
-  srfi-18)
+  srfi-18
+  srfi-69)
 
  ;; Default virtual host pattern for Schematra routing
  ;;
@@ -52,7 +55,9 @@
  ;;   - "localhost" - matches only localhost
  ;;
  ;; This parameter is used by schematra-install when configuring the vhost-map.
- (define schematra-default-vhost ".*")
+ (define schematra-default-vhost (make-parameter ".*"))
+
+ (define schematra-cookie-key (make-parameter "schematra.session_id"))
 
  ;; Default handler for unmatched routes
  ;; 
@@ -322,8 +327,38 @@
                     (read-string #f in-port))))
      body))
 
+ (define cookies (make-parameter #f))
+ (define session (make-parameter #f))
+
+ (define (cookie-set! key val #!key (path (uri-reference "/")) (max-age #f) (secure #f) (http-only #f))
+   (if (hash-table? (cookies))
+       (begin
+	 (hash-table-set! (cookies) key
+			  `#(,val
+			     ((path . ,path)
+			      ,@(if max-age `((max-age . ,max-age)) '())
+			      ,@(if secure `((secure . #t)) '())
+			      ,@(if http-only `((http-only . #t)) '())))))))
+
+ (define (cookie-ref key)
+   (if (hash-table? (cookies))
+       (hash-table-ref (cookies) key)
+       #f))
+
+ (define (cookies->headers)
+   (if (hash-table? (cookies))
+       (hash-table-map
+	(cookies)
+	(lambda (key val-vector)
+	  (let ((val (vector-ref val-vector 0)))
+	    `(set-cookie #((,key . ,val) ,(vector-ref val-vector 1))))
+	  ))))
+
  (define (schematra-router continue)
    (let* ((request (current-request))
+          (headers (request-headers request))
+          (raw-cookies (header-values 'cookie headers))
+          (session-id (assoc (schematra-cookie-key) raw-cookies))
           (method (request-method request))
           (uri (request-uri request))
           (normalized-path (normalize-path (uri-path uri)))
@@ -333,13 +368,22 @@
             [(eq? method 'POST) post-routes]
             [else (error "no handlers for this method")]))
           (result (find-resource normalized-path route-handlers)))
+     (log-to (access-log) "Cookies: ~A; sid: ~A" raw-cookies session-id)
      (if development-mode?
          (log-to (access-log) "Req: ~A. Path: ~A. Method: ~A" request normalized-path method))
-     (if result 
-         (let* ((handler (car result))
-                (route-params (cadr result))
-                (params (append route-params (uri-query uri))))
-           (parse-response (handler request params)))
+     (if result
+	 (begin
+           (parameterize ((cookies (alist->hash-table raw-cookies)))
+	     (let* ((handler (car result))
+		    (route-params (cadr result))
+		    (params (append route-params (uri-query uri)))
+		    (response (handler request params)))
+	       ;; add some cookie, temp test only
+	       (cookie-set! "foo-x" "sup")
+	       (with-headers (cookies->headers)
+			     (lambda ()
+			       (parse-response response)))))
+	   (log-to (access-log) "cookies: ~A" (cookies)))
          (continue))))
 
  ;; Install the Schematra router as a virtual host handler
@@ -354,8 +398,9 @@
  ;;   (schematra-install)
  ;;   (start-server port: 8080)
  (define (schematra-install)
-   (vhost-map
-    `((,schematra-default-vhost . ,(lambda (continue) (schematra-router continue))))))
+   (let ((vhost (schematra-default-vhost)))
+     (vhost-map
+      `((,vhost . ,(lambda (continue) (schematra-router continue)))))))
 
  ;; Start the Schematra web server
  ;;
