@@ -41,6 +41,7 @@
 
 (get "/"
      (lambda (request #!optional params)
+       (cookie-set! "test" "this is a test")
        welcome-page))
 
 (define (lookup key alist)
