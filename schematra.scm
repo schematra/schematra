@@ -24,7 +24,7 @@
   ;; Procedures
   get post
   log-err log-dbg
-  cookie-set! cookie-ref
+  cookie-set! cookie-delete! cookie-ref
   request-body-string
   schematra-install
   schematra-start
@@ -327,7 +327,9 @@
                     (read-string #f in-port))))
      body))
 
- (define cookies (make-parameter #f))
+ (define request-cookies (make-parameter #f))
+ (define response-cookies (make-parameter #f))
+
  (define session (make-parameter #f))
 
  ;; Set a cookie to be sent in the HTTP response
@@ -341,9 +343,10 @@
  ;;   val: string - The cookie value
  ;;
  ;; Keyword Parameters:
- ;;   path: uri-reference - URL path where the cookie is valid (default: "/")
- ;;         The cookie will only be sent for requests matching this path prefix.
- ;;         Examples: "/" (entire site), "/admin" (admin section only)
+ ;;   path: uri struct (as defined in uri-common) - URL path where the
+ ;;         cookie is valid (default: "/") The cookie will only be
+ ;;         sent for requests matching this path prefix.  Examples:
+ ;;         "/" (entire site), "/admin" (admin section only)
  ;;
  ;;   max-age: string or #f - Cookie lifetime in seconds (default: #f for session cookie)
  ;;            If specified, cookie expires after this many seconds.
@@ -376,32 +379,36 @@
  ;;                secure: #t 
  ;;                http-only: #t 
  ;;                max-age: "3600")
- ;;
- ;;   ;; Delete a cookie (set max-age to 0)
- ;;   (cookie-set! "old_cookie" "" max-age: "0")
- (define (cookie-set! key val #!key (path (uri-reference "/")) (max-age #f) (secure #f) (http-only #f))
-   (if (hash-table? (cookies))
-       (begin
-	 (hash-table-set! (cookies) key
-			  `#(,val
-			     ((path . ,path)
-			      ,@(if max-age `((max-age . ,max-age)) '())
-			      ,@(if secure `((secure . #t)) '())
-			      ,@(if http-only `((http-only . #t)) '())))))))
+ (define (cookie-set! key val #!key
+		      (path (uri-reference "/"))
+		      (max-age #f)
+		      (secure #f)
+		      (http-only #f)
+		      (domain #f))
+   (hash-table-set! (response-cookies) key
+		    `#(,val
+		       ((path . ,path)
+			,@(if max-age `((max-age . ,max-age)) '())
+			,@(if secure `((secure . #t)) '())
+			,@(if http-only `((http-only . #t)) '())
+			,@(if domain `((domain . #t)) '())))))
 
- (define (cookie-ref key)
-   (if (hash-table? (cookies))
-       (hash-table-ref (cookies) key)
-       #f))
+ (define (cookie-ref key #!optional default)
+   (if (hash-table? (request-cookies))
+       (hash-table-ref/default (request-cookies) key default)
+       default))
 
- (define (cookies->headers)
-   (if (hash-table? (cookies))
-       (hash-table-map
-	(cookies)
-	(lambda (key val-vector)
-	  (let ((val (vector-ref val-vector 0)))
-	    `(set-cookie #((,key . ,val) ,(vector-ref val-vector 1))))
-	  ))))
+ ;; delete a cookie. Make sure the path/scope is the same, otherwise
+ ;; the old one will still be kept
+ (define (cookie-delete! key #!key (path (uri-reference "/")))
+   (cookie-set! key "" max-age: 0 path: path))
+
+ (define (cookies->headers cookies)
+   (hash-table-map cookies
+		   (lambda (key val-vector)
+		     (let ((val (vector-ref val-vector 0)))
+		       `(set-cookie #((,key . ,val) ,(vector-ref val-vector 1))))
+		     )))
 
  (define (schematra-router continue)
    (let* ((request (current-request))
@@ -421,18 +428,15 @@
      (if development-mode?
          (log-to (access-log) "Req: ~A. Path: ~A. Method: ~A" request normalized-path method))
      (if result
-	 (begin
-           (parameterize ((cookies (alist->hash-table raw-cookies)))
-	     (let* ((handler (car result))
-		    (route-params (cadr result))
-		    (params (append route-params (uri-query uri)))
-		    (response (handler request params)))
-	       ;; add some cookie, temp test only
-	       (cookie-set! "foo-x" "sup")
-	       (with-headers (cookies->headers)
-			     (lambda ()
-			       (parse-response response)))))
-	   (log-to (access-log) "cookies: ~A" (cookies)))
+         (parameterize ((request-cookies (alist->hash-table raw-cookies))
+			(response-cookies (make-hash-table)))
+	   (let* ((handler (car result))
+		  (route-params (cadr result))
+		  (params (append route-params (uri-query uri)))
+		  (response (handler request params)))
+	     (with-headers (cookies->headers (response-cookies))
+			   (lambda ()
+			     (parse-response response)))))
          (continue))))
 
  ;; Install the Schematra router as a virtual host handler
