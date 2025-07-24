@@ -199,6 +199,11 @@
                                    string-path)))
      normalized-path))
 
+ (define (add-route-resource routes path thunk)
+   (let ((raw-uri-path (uri-path (uri-reference path))))
+     (set! routes
+           (add-resource! (normalize-path raw-uri-path) routes thunk))))
+
  ;; Register a GET route handler
  ;;
  ;; Registers a handler function to respond to HTTP GET requests for a specific path.
@@ -247,10 +252,8 @@
  ;;          (let ((user-id (alist-ref "user-id" params equal?))
  ;;                (post-id (alist-ref "post-id" params equal?)))
  ;;            (format "User ~A, Post ~A" user-id post-id))))
- (define (get path body)
-   (let ((raw-uri-path (uri-path (uri-reference path))))
-     (set! get-routes
-           (add-resource! (normalize-path raw-uri-path) get-routes body))))
+ (define (get path thunk)
+   (add-route-resource get-routes path thunk))
 
  ;; Register a POST route handler
  ;;
@@ -265,10 +268,8 @@
  ;;   See the 'get' function documentation for complete details on handler function
  ;;   signature, path parameters, query parameters, and return values. POST handlers
  ;;   work identically to GET handlers in terms of parameter handling and responses.
- (define (post path body)
-   (let ((raw-uri-path (uri-path (uri-reference path))))
-     (set! post-routes
-           (add-resource! (normalize-path raw-uri-path) post-routes body))))
+ (define (post path thunk)
+   (add-route-resource post-routes path thunk))
 
  (define (alist? x)
    (and (list? x)
