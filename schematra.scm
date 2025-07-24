@@ -424,9 +424,6 @@
             [(eq? method 'POST) post-routes]
             [else (error "no handlers for this method")]))
           (result (find-resource normalized-path route-handlers)))
-     (log-to (access-log) "Cookies: ~A; sid: ~A" raw-cookies session-id)
-     (if development-mode?
-         (log-to (access-log) "Req: ~A. Path: ~A. Method: ~A" request normalized-path method))
      (if result
          (parameterize ((request-cookies (alist->hash-table raw-cookies))
 			(response-cookies (make-hash-table)))
