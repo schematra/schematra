@@ -148,7 +148,7 @@
     ;; No match with current tree node
     [else #f]))
 
- (define (add-resource! path tree handler)
+ (define (add-resource path tree handler)
    (if (null? path)
        tree                    ; Empty path, return tree as-is
        (let ((target-segment (car path))
@@ -164,11 +164,11 @@
                  (cond
                   [(null? subtrees)
                    ;; No matching subtree, create new one
-                   (append result (list (add-resource! remaining-path (list (car remaining-path) #f) handler)))]
+                   (append result (list (add-resource remaining-path (list (car remaining-path) #f) handler)))]
                   [(and (list? (car subtrees)) (string=? (car remaining-path) (caar subtrees)))
                    ;; Found matching subtree
                    (append result
-                           (list (add-resource! remaining-path (car subtrees) handler))
+                           (list (add-resource remaining-path (car subtrees) handler))
                            (cdr subtrees))]
                   [else
                    ;; Keep looking
@@ -177,7 +177,7 @@
           [else
            (if (null? remaining-path)
                (list target-segment handler)
-               (list target-segment #f (add-resource! remaining-path (list (car remaining-path) #f) handler)))]))))
+               (list target-segment #f (add-resource remaining-path (list (car remaining-path) #f) handler)))]))))
 
  ;; empty routes. each verb has a list of routes
  (define get-routes (make-path-tree))
@@ -199,10 +199,16 @@
                                    string-path)))
      normalized-path))
 
- (define (add-route-resource routes path thunk)
-   (let ((raw-uri-path (uri-path (uri-reference path))))
-     (set! routes
-           (add-resource! (normalize-path raw-uri-path) routes thunk))))
+ (define-syntax define-verb
+   (er-macro-transformer
+    (lambda (exp rename compare)
+      (let* ((verb         (cadr exp))
+	     (routes-name  (string->symbol (string-append (symbol->string verb) "-routes")))
+	     (routes-param (rename routes-name)))
+	`(define (,verb path thunk)
+	   (let ((raw-uri-path (uri-path (uri-reference path))))
+	     (set! ,routes-param
+		   (,(rename 'add-resource) (,(rename 'normalize-path) raw-uri-path) ,routes-param thunk))))))))
 
  ;; Register a GET route handler
  ;;
@@ -252,8 +258,7 @@
  ;;          (let ((user-id (alist-ref "user-id" params equal?))
  ;;                (post-id (alist-ref "post-id" params equal?)))
  ;;            (format "User ~A, Post ~A" user-id post-id))))
- (define (get path thunk)
-   (add-route-resource get-routes path thunk))
+ (define-verb get)
 
  ;; Register a POST route handler
  ;;
@@ -268,8 +273,7 @@
  ;;   See the 'get' function documentation for complete details on handler function
  ;;   signature, path parameters, query parameters, and return values. POST handlers
  ;;   work identically to GET handlers in terms of parameter handling and responses.
- (define (post path thunk)
-   (add-route-resource post-routes path thunk))
+ (define-verb post)
 
  (define (alist? x)
    (and (list? x)
