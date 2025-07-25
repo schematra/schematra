@@ -293,6 +293,10 @@
  (define (parse-response resp)
    (cond
     [(string? resp) (send-response status: 'ok body: resp)]
+    [(is-response? resp)
+     (send-response
+      status: (car resp)
+      body: (list-ref resp 1))]
     [else
      (send-response
       status: 'error
