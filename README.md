@@ -15,8 +15,9 @@ I created Schematra because I wanted to:
 ## Features
 
 - Simple route definition with `get` and `post` functions
-- URL parameter extraction (e.g., `/users/:id`)
-- Request body parsing
+- URL parameter extraction (e.g., `/users/:id`) & body parsing
+- Middleware support
+- Included naive session middleware (cookie storage)
 - Development mode with REPL integration (leveraging emacs `run-scheme`)
 - Very simple [hiccup](https://github.com/weavejester/hiccup) inspired template system
 - Built on top of the solid [Spiffy](http://wiki.call-cc.org/eggref/5/spiffy) web server
