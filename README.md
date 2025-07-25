@@ -145,17 +145,79 @@ Add htmx for dynamic interactions:
        (ccup/html `[p "Button was clicked!"])))
 ```
 
+## Session Management
+
+Schematra includes a simple session middleware that stores session data in HTTP cookies. Sessions are automatically serialized and deserialized on each request.
+
+### Basic Usage
+
+First, install the session middleware with a secret key:
+
+```scheme
+(import sessions)
+
+;; Install session middleware
+(use-middleware! (session-middleware "your-secret-key-here"))
+```
+
+Then use session functions in your route handlers:
+
+```scheme
+(get "/login"
+     (lambda (req params)
+       (session-set! "user-id" "12345")
+       (session-set! "username" "alice")
+       "Logged in successfully"))
+
+(get "/profile"
+     (lambda (req params)
+       (let ((user-id (session-get "user-id")))
+         (if user-id
+             (format "Welcome user ~A" user-id)
+             "Please log in"))))
+
+(get "/logout"
+     (lambda (req params)
+       (session-delete! "user-id")
+       (session-delete! "username")
+       "Logged out"))
+```
+
+### Session Functions
+
+- `(session-get key [default])` - Retrieve a value from the session
+- `(session-set! key value)` - Store a value in the session
+- `(session-delete! key)` - Remove a key from the session
+
+### Configuration
+
+You can customize session behavior using parameters:
+
+```scheme
+;; Set session cookie name (default: "schematra.session_id")
+(session-key "myapp_session")
+
+;; Set session expiration time in seconds (default: 24 hours)
+(session-max-age (* 7 24 60 60))  ; 1 week
+```
+
+### Security Notes
+
+- Sessions are stored as serialized data in cookies (client-side storage)
+- The secret key is used for session identification but not encryption
+- Avoid storing sensitive data in sessions
+- Consider implementing proper encryption/signing for production use
+- Session cookies are HTTP-only by default to prevent JavaScript access
+
 ## Current Status
 
 **This is a toy project!** Schematra is still in early development and should not be used for production applications. It's missing many features you'd expect from a mature web framework:
 
-- No session management
-- No middleware system
 - Limited error handling
 - No template engine (but you can use the included chiccup, a [hiccup](https://github.com/weavejester/hiccup)-inspired template system)
 - No database integration (but you can use any [database egg](https://eggs.call-cc.org/5/#db))
 - No background job system
-- No security features
+- Limited security features
 
 However, it's perfect for:
 - Learning Scheme
