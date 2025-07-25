@@ -3,9 +3,11 @@
  (
   ;; procedures
   session-middleware
+  session-get session-set! session-delete!
+  ;; parameters
   session-max-age
   session-key
-  session-get session-set! session-delete!
+  session-dirty-key
  );; end export list
 
  (import scheme)
@@ -21,7 +23,7 @@
  (define session-key (make-parameter "schematra.session_id"))
 
  (define session (make-parameter #f))
- (define dirty_key '__dirty)
+ (define session-dirty-key '__dirty)
 
  ;; Create session middleware for managing HTTP sessions
  ;;
@@ -84,7 +86,7 @@
        (parameterize ((session session-data))
 	 (let ((response (next)))
 	   ;; save session back to cookie if needed
-	   (if (hash-table-exists? session-data dirty_key)
+	   (if (hash-table-exists? session-data session-dirty-key)
 	       (cookie-set! (session-key)
 			    (serialize-session session-data secret-key)
 			    http-only: #t
@@ -93,7 +95,7 @@
 
  (define (serialize-session session-hash secret-key)
    ;; don't serialize the modified key
-   (hash-table-delete! session-hash dirty_key)
+   (hash-table-delete! session-hash session-dirty-key)
    (let ((alist (hash-table->alist session-hash)))
      (with-output-to-string
        (lambda () (write alist)))))
@@ -110,8 +112,8 @@
 
  (define (session-set! key value)
    (hash-table-set! (session) key value)
-   (hash-table-set! (session) dirty_key #t))
+   (hash-table-set! (session) session-dirty-key #t))
 
  (define (session-delete! key)
    (hash-table-delete! (session) key)
-   (hash-table-set! (session) dirty_key #t)))
+   (hash-table-set! (session) session-dirty-key #t)))
