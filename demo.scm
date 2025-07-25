@@ -44,11 +44,11 @@
 
 (get "/"
      (lambda (request #!optional params)
-       (let ((cc (cookie-ref "test"))
-	     (ss (session-get "foo")))
-	 (display (format "cookie: ~A; session[foo]: ~A\n" cc ss)))
+       (let ((cookie-val (cookie-ref "test"))
+	     (session-val (session-get "foo")))
+	 (display (format "Cookie: ~A; session[foo]: ~A\n" cookie-val session-val)))
        (cookie-set! "test" "this is a test")
-       (session-set! "foo" "hey")
+       (session-set! "foo" 42)
        welcome-page))
 
 (define (lookup key alist)
