@@ -4,6 +4,7 @@
   ;; procedures
   session-middleware
   session-get session-set! session-delete!
+  session-destroy!
   ;; parameters
   session-max-age
   session-key
@@ -15,8 +16,11 @@
   chicken.base
   chicken.condition
   chicken.port
+  chicken.string
   format
   srfi-69
+  message-digest
+  hmac sha2 base64
   schematra)
 
  ;; Maximum age for session cookies in seconds
@@ -162,14 +166,26 @@
  (define (serialize-session session-hash secret-key)
    ;; don't serialize the modified key
    (hash-table-delete! session-hash session-dirty-key)
-   (let ((alist (hash-table->alist session-hash)))
-     (with-output-to-string
-       (lambda () (write alist)))))
+   ;; we need to convert the string from the alist to signature
+   ;; . base64(alist)
+   (let* ((alist        (hash-table->alist session-hash))
+	  (alist-str    (with-output-to-string
+			  (lambda () (write alist))))
+	  (alist-base64 (base64-encode alist-str))
+	  (prim         (hmac-primitive secret-key (sha256-primitive)))
+	  (signature    (message-digest-string prim alist-base64)))
+     (string-append signature "." alist-base64)))
 
  (define (deserialize-session cookie-value secret-key)
    (condition-case
-    (let ((alist (with-input-from-string cookie-value read)))
-      (alist->hash-table alist))
+    (let* ((cookie       (string-split cookie-value "."))
+	   (signature    (car cookie))
+	   (alist-base64 (cadr cookie))
+	   (prim         (hmac-primitive secret-key (sha256-primitive)))
+	   (valid-sign?  (string=? signature (message-digest-string prim alist-base64))))
+      (if valid-sign?
+	  (alist->hash-table (with-input-from-string (base64-decode alist-base64) read))
+	  (make-hash-table)))
     (e (_exn) (make-hash-table))))
 
  ;; helpers to get/set/delete values in the session
@@ -182,4 +198,8 @@
 
  (define (session-delete! key)
    (hash-table-delete! (session) key)
+   (hash-table-set! (session) session-dirty-key #t))
+
+ (define (session-destroy!)
+   (session (make-hash-table))
    (hash-table-set! (session) session-dirty-key #t)))
