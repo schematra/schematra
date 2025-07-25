@@ -1,4 +1,4 @@
-(import schematra chiccup format intarweb)
+(import schematra sessions chiccup format intarweb)
 
 (define (html-layout title body)
   (ccup/html
@@ -39,9 +39,16 @@
 (define welcome-page
   (html-layout "SillyBot AI - The Silliest AI Ever" welcome-page-content))
 
+;; testing middleware
+(use-middleware! (session-middleware "foobar"))
+
 (get "/"
      (lambda (request #!optional params)
+       (let ((cc (cookie-ref "test"))
+	     (ss (session-get "foo")))
+	 (display (format "cookie: ~A; session[foo]: ~A\n" cc ss)))
        (cookie-set! "test" "this is a test")
+       (session-set! "foo" "hey")
        welcome-page))
 
 (define (lookup key alist)
