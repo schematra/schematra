@@ -209,7 +209,7 @@
 	`(define (,verb path thunk)
 	   (let ((raw-uri-path (uri-path (uri-reference path))))
 	     (set! ,routes-param
-		   (,(rename 'add-resource) (,(rename 'normalize-path) raw-uri-path) ,routes-param thunk))))))))
+		   (add-resource (normalize-path raw-uri-path) ,routes-param thunk))))))))
 
  ;; Register a GET route handler
  ;;
