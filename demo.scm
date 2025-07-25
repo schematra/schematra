@@ -42,6 +42,24 @@
 ;; testing middleware
 (use-middleware! (session-middleware "foobar"))
 
+(define (valid-token? header)
+  (and (list? header)
+       (= 1 (length header))
+       (vector? (car header))
+       (string=? (symbol->string (get-value (car header))) "bearer")
+       (string=? (symbol->string (caar (get-params (car header)))) "secret")))
+
+;; detail of the headers content: https://wiki.call-cc.org/eggref/5/intarweb#headers
+(define (auth-middleware request params next)
+  (let ((auth-header (header-contents 'authorization (request-headers request))))
+    (if (and auth-header (valid-token? auth-header))
+        ;; Continue to next middleware or route
+        (next)
+        ;; Return error response
+        '(unauthorized "You don't belong here"))))
+
+(use-middleware! auth-middleware)
+
 (get "/"
      (lambda (request #!optional params)
        (let ((cookie-val (cookie-ref "test"))

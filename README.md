@@ -156,11 +156,21 @@ Middleware functions have the following signature:
 #### Authentication Middleware
 
 ```scheme
+(define (valid-token? header)
+  (and (list? header)
+       (= 1 (length header))
+       (vector? (car header))
+       (string=? (symbol->string (get-value (car header))) "bearer")
+       (string=? (symbol->string (caar (get-params (car header)))) "secret")))
+
+;; detail of the headers content: https://wiki.call-cc.org/eggref/5/intarweb#headers
 (define (auth-middleware request params next)
-  (let ((auth-header (header-value 'authorization (request-headers request))))
+  (let ((auth-header (header-contents 'authorization (request-headers request))))
     (if (and auth-header (valid-token? auth-header))
-        (next)  ; Continue to handler
-        "401 Unauthorized")))  ; Return error response
+        ;; Continue to next middleware or route
+        (next)
+        ;; Return error response
+        '(unauthorized "You don't belong here"))))
 
 (use-middleware! auth-middleware)
 ```
