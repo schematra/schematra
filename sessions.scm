@@ -66,8 +66,6 @@
  ;;   (session-key "myapp_prod_session") ; for production
  (define session-key (make-parameter "schematra.session_id"))
 
- (define session (make-parameter #f))
-
  ;; Internal key used to track session modifications
  ;;
  ;; This symbol is used internally by the session middleware to determine whether
@@ -89,6 +87,10 @@
  ;; serialization, so it never appears in the actual cookie value.
  (define session-dirty-key '__dirty)
 
+ ;; this is the placeholder for the hash-table that will hold the
+ ;; session data through a request.
+ (define session (make-parameter #f))
+ 
  ;; Create session middleware for managing HTTP sessions
  ;;
  ;; This function creates middleware that provides session management capabilities
