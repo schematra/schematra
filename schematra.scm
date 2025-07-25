@@ -20,11 +20,12 @@
  ( ;; Parameters
   schematra-default-handler
   schematra-default-vhost
-  schematra-cookie-key
+  schematra-session-cookie-key
   ;; Procedures
   get post
   log-err log-dbg
   cookie-set! cookie-delete! cookie-ref
+  use-middleware!
   request-body-string
   schematra-install
   schematra-start
@@ -57,7 +58,7 @@
  ;; This parameter is used by schematra-install when configuring the vhost-map.
  (define schematra-default-vhost (make-parameter ".*"))
 
- (define schematra-cookie-key (make-parameter "schematra.session_id"))
+ (define schematra-session-cookie-key (make-parameter "schematra.session_id"))
 
  ;; Default handler for unmatched routes
  ;; 
@@ -415,11 +416,26 @@
 		       `(set-cookie #((,key . ,val) ,(vector-ref val-vector 1))))
 		     )))
 
+ ;; middleware
+ (define middleware-stack '())
+
+ (define (use-middleware! middleware)
+   (set! middleware-stack (append middleware-stack (list middleware))))
+
+ (define (apply-middleware-stack request params thunk)
+   (let loop ((middlewares middleware-stack))
+     (if (null? middlewares)
+	 (thunk request params)
+	 (let ((middleware (car middlewares))
+	       (remaining  (cdr middlewares)))
+	   (middleware request params (lambda () (loop remaining)))))))
+
+ ;; router
  (define (schematra-router continue)
    (let* ((request (current-request))
           (headers (request-headers request))
           (raw-cookies (header-values 'cookie headers))
-          (session-id (assoc (schematra-cookie-key) raw-cookies))
+          (session-id (assoc (schematra-session-cookie-key) raw-cookies))
           (method (request-method request))
           (uri (request-uri request))
           (normalized-path (normalize-path (uri-path uri)))
@@ -428,14 +444,14 @@
             [(eq? method 'GET) get-routes]
             [(eq? method 'POST) post-routes]
             [else (error "no handlers for this method")]))
-          (result (find-resource normalized-path route-handlers)))
-     (if result
+          (resource (find-resource normalized-path route-handlers)))
+     (if resource
          (parameterize ((request-cookies (alist->hash-table raw-cookies))
 			(response-cookies (make-hash-table)))
-	   (let* ((handler (car result))
-		  (route-params (cadr result))
+	   (let* ((handler (car resource))
+		  (route-params (cadr resource))
 		  (params (append route-params (uri-query uri)))
-		  (response (handler request params)))
+		  (response (apply-middleware-stack request params handler)))
 	     (with-headers (cookies->headers (response-cookies))
 			   (lambda ()
 			     (parse-response response)))))
