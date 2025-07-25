@@ -20,7 +20,6 @@
  ( ;; Parameters
   schematra-default-handler
   schematra-default-vhost
-  schematra-session-cookie-key
   ;; Procedures
   get post
   log-err log-dbg
@@ -57,8 +56,6 @@
  ;;
  ;; This parameter is used by schematra-install when configuring the vhost-map.
  (define schematra-default-vhost (make-parameter ".*"))
-
- (define schematra-session-cookie-key (make-parameter "schematra.session_id"))
 
  ;; Default handler for unmatched routes
  ;; 
@@ -336,8 +333,6 @@
  (define request-cookies (make-parameter #f))
  (define response-cookies (make-parameter #f))
 
- (define session (make-parameter #f))
-
  ;; Set a cookie to be sent in the HTTP response
  ;;
  ;; This function queues a cookie to be included in the Set-Cookie headers of the
@@ -435,7 +430,6 @@
    (let* ((request (current-request))
           (headers (request-headers request))
           (raw-cookies (header-values 'cookie headers))
-          (session-id (assoc (schematra-session-cookie-key) raw-cookies))
           (method (request-method request))
           (uri (request-uri request))
           (normalized-path (normalize-path (uri-path uri)))

@@ -3,6 +3,8 @@
  (
   ;; procedures
   session-middleware
+  session-max-age
+  session-key
   session-get session-set! session-delete!
  );; end export list
 
@@ -15,12 +17,15 @@
   srfi-69
   schematra)
 
+ (define session-max-age (make-parameter (* 24 60 60)))
+ (define session-key (make-parameter "schematra.session_id"))
+
  (define session (make-parameter #f))
  (define dirty_key '__dirty)
 
  (define (session-middleware secret-key)
    (lambda (req params next)
-     (let* ((session-cookie (cookie-ref (schematra-session-cookie-key)))
+     (let* ((session-cookie (cookie-ref (session-key)))
 	    (session-data (if session-cookie
 			      (deserialize-session session-cookie secret-key)
 			      (make-hash-table))))
@@ -28,7 +33,7 @@
 	 (let ((response (next)))
 	   ;; save session back to cookie if needed
 	   (if (hash-table-exists? session-data dirty_key)
-	       (cookie-set! (schematra-session-cookie-key)
+	       (cookie-set! (session-key)
 			    (serialize-session session-data secret-key)
 			    http-only: #t
 			    max-age: (* 24 60 60)))
