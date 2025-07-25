@@ -19,10 +19,74 @@
   srfi-69
   schematra)
 
+ ;; Maximum age for session cookies in seconds
+ ;;
+ ;; This parameter controls how long session cookies remain valid in the client's browser.
+ ;; The value is specified in seconds and determines the 'max-age' attribute of the
+ ;; Set-Cookie header when sessions are saved.
+ ;;
+ ;; Default: 86400 seconds (24 hours)
+ ;;
+ ;; Common values:
+ ;;   - 3600: 1 hour
+ ;;   - 86400: 1 day (default)
+ ;;   - 604800: 1 week
+ ;;   - 2592000: 30 days
+ ;;
+ ;; When a session cookie expires, the browser will automatically delete it and
+ ;; subsequent requests will start with a fresh, empty session.
+ ;;
+ ;; Example usage:
+ ;;   ;; Set sessions to expire after 2 hours
+ ;;   (session-max-age (* 2 60 60))
+ ;;
+ ;;   ;; Set sessions to expire after 1 week
+ ;;   (session-max-age (* 7 24 60 60))
  (define session-max-age (make-parameter (* 24 60 60)))
+
+ ;; Name of the HTTP cookie used to store session data
+ ;;
+ ;; This parameter defines the cookie name that will appear in the browser's cookie
+ ;; storage and in HTTP Cookie/Set-Cookie headers. The session middleware uses this
+ ;; name to identify which cookie contains the serialized session data.
+ ;;
+ ;; Default: "schematra.session_id"
+ ;;
+ ;; The cookie name should:
+ ;;   - Be unique to avoid conflicts with other applications
+ ;;   - Follow HTTP cookie naming conventions (alphanumeric, dots, underscores)
+ ;;   - Be descriptive enough to identify its purpose
+ ;;
+ ;; Example usage:
+ ;;   ;; Use a custom session cookie name
+ ;;   (session-key "myapp_session")
+ ;;
+ ;;   ;; Use environment-specific names
+ ;;   (session-key "myapp_dev_session")  ; for development
+ ;;   (session-key "myapp_prod_session") ; for production
  (define session-key (make-parameter "schematra.session_id"))
 
  (define session (make-parameter #f))
+
+ ;; Internal key used to track session modifications
+ ;;
+ ;; This symbol is used internally by the session middleware to determine whether
+ ;; a session has been modified during request processing. When session-set! or
+ ;; session-delete! is called, this key is automatically added to the session
+ ;; hash table to mark it as "dirty".
+ ;;
+ ;; The middleware checks for the presence of this key after request processing
+ ;; to decide whether to save the session back to a cookie. This optimization
+ ;; prevents unnecessary cookie updates when sessions are only read from.
+ ;;
+ ;; Value: '__dirty (symbol)
+ ;;
+ ;; This is an internal implementation detail and should not be used directly
+ ;; in application code. The session-get, session-set!, and session-delete!
+ ;; functions handle dirty tracking automatically.
+ ;;
+ ;; Note: This key is automatically removed from the session data before
+ ;; serialization, so it never appears in the actual cookie value.
  (define session-dirty-key '__dirty)
 
  ;; Create session middleware for managing HTTP sessions
