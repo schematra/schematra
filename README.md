@@ -110,6 +110,97 @@ Schematra supports URL parameters using the `:parameter` syntax, as well as quer
 
 The `params` argument contains both URL parameters (with string keys) and query parameters (with symbol keys).
 
+## Middleware
+
+Schematra supports middleware functions that can process requests before they reach your route handlers. Middleware is useful for cross-cutting concerns like authentication, logging, request parsing, and session management.
+
+### Using Middleware
+
+Install middleware using the `use-middleware!` function:
+
+```scheme
+(use-middleware! my-middleware-function)
+```
+
+Middleware functions have the following signature:
+
+```scheme
+(define (my-middleware request params next)
+  ;; Process request/params before handler
+  (let ((response (next)))  ; Call next middleware or handler
+    ;; Process response after handler
+    response))
+```
+
+### Middleware Parameters
+
+- `request`: The HTTP request object
+- `params`: The route and query parameters alist
+- `next`: A thunk (zero-argument function) that calls the next middleware in the chain or the final route handler
+
+### Middleware Examples
+
+#### Simple Logging Middleware
+
+```scheme
+(define (logging-middleware request params next)
+  (let* ((method (request-method request))
+         (uri (request-uri request))
+         (path (uri-path uri)))
+    (log-dbg "~A ~A" method (uri->string uri))
+    (next)))
+
+(use-middleware! logging-middleware)
+```
+
+#### Authentication Middleware
+
+```scheme
+(define (auth-middleware request params next)
+  (let ((auth-header (header-value 'authorization (request-headers request))))
+    (if (and auth-header (valid-token? auth-header))
+        (next)  ; Continue to handler
+        "401 Unauthorized")))  ; Return error response
+
+(use-middleware! auth-middleware)
+```
+
+#### Request Processing Middleware
+
+```scheme
+(define (json-middleware request params next)
+  (let* ((content-type (header-value 'content-type (request-headers request)))
+         (is-json? (and content-type (string-contains content-type "application/json"))))
+    (if is-json?
+        (let* ((body (request-body-string request))
+               (parsed-json (parse-json body))
+               ;; Add parsed JSON to params
+               (enhanced-params (cons `(json . ,parsed-json) params)))
+          ;; Call next with enhanced params
+          (next request enhanced-params))
+        (next))))
+
+(use-middleware! json-middleware)
+```
+
+### Middleware Execution Order
+
+Middleware is executed in the order it's installed with `use-middleware!`. The first middleware installed runs first on the request, and last on the response:
+
+```scheme
+(use-middleware! middleware-a)  ; Runs first
+(use-middleware! middleware-b)  ; Runs second
+(use-middleware! middleware-c)  ; Runs third
+
+;; Execution flow:
+;; Request: middleware-a -> middleware-b -> middleware-c -> route-handler
+;; Response: route-handler -> middleware-c -> middleware-b -> middleware-a
+```
+
+### Built-in Middleware
+
+Schematra includes session middleware for cookie-based session management. See the "Session Management" section for details on using the session middleware.
+
 ## Working with Modern Web Tools
 
 Schematra plays nicely with modern web development tools:
