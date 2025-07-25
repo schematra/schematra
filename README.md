@@ -41,6 +41,7 @@ Next step would be to build schematra & chiccup:
 ```bash
 csc -s schematra.scm -j schematra
 csc -s chiccup.scm -j chiccup
+csc -s sessions.scm -j sessions
 ```
 
 ## Quick Start
