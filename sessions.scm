@@ -160,7 +160,7 @@
 	       (cookie-set! (session-key)
 			    (serialize-session session-data secret-key)
 			    http-only: #t
-			    max-age: (* 24 60 60)))
+			    max-age: (session-max-age)))
 	   response)))))
 
  (define (serialize-session session-hash secret-key)
