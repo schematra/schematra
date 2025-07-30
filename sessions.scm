@@ -158,9 +158,9 @@
 	     (lambda () #f)     ;; before thunk - do nothing
 	     (lambda () (next)) ;; main thun - continue the middleware stack
 	     (lambda ()         ;; after thunk - always run
-	       (if (hash-table-exists? session-data session-dirty-key)
+	       (if (hash-table-exists? (session) session-dirty-key)
 		   (cookie-set! (session-key)
-				(serialize-session session-data secret-key)
+				(serialize-session (session) secret-key)
 				http-only: #t
 				max-age: (session-max-age)))))))))
 
@@ -187,7 +187,9 @@
       (if valid-sign?
 	  (alist->hash-table (with-input-from-string (base64-decode alist-base64) read))
 	  (make-hash-table)))
-    (e (_exn) (make-hash-table))))
+    (e (_exn) (begin
+		(log-err "Error deserializing cookie: ~A" cookie-value)
+		(make-hash-table)))))
 
  ;; helpers to get/set/delete values in the session
  (define (session-get key #!optional default)

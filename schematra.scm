@@ -467,7 +467,6 @@
 		   (let ((status (get-condition-property exn 's-halt 'status))
 			 (body   (get-condition-property exn 's-halt 'body))
 			 (headers (get-condition-property exn 's-halt 'headers)))
-		     (display (response-cookies)) (newline)
 		     (with-headers (cookies->headers (response-cookies))
 				   (lambda ()
 				     (send-response

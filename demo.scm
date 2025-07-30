@@ -1,14 +1,20 @@
-(import schematra sessions chiccup format intarweb)
+(import
+ schematra
+ sessions
+ chiccup
+ format
+ intarweb
+)
 
 (define (html-layout title body)
   (ccup/html
    `[html (("lang" . "en"))
-      [head
-       [meta (("charset" . "utf-8"))]
-       [meta (("name" . "viewport") ("content" . "width=device-width, initial-scale=1"))]
-       [title ,title]
-       [script (("src" . "https://cdn.tailwindcss.com"))]]
-      [body ,body]]))
+	  [head
+	   [meta (("charset" . "utf-8"))]
+	   [meta (("name" . "viewport") ("content" . "width=device-width, initial-scale=1"))]
+	   [title ,title]
+	   [script (("src" . "https://cdn.tailwindcss.com"))]]
+	  [body ,body]]))
 
 (define welcome-page-content
   `[.min-h-screen.bg-gradient-to-br.from-purple-400.via-pink-500.to-red-500.flex.items-center.justify-center.p-4
@@ -40,7 +46,7 @@
   (html-layout "SillyBot AI - The Silliest AI Ever" welcome-page-content))
 
 ;; testing middleware
-(use-middleware! (session-middleware "foobar"))
+(use-middleware! (session-middleware "my-secret-key"))
 
 (define (valid-token? header)
   (and (list? header)
@@ -58,8 +64,7 @@
         ;; Return error response
         '(unauthorized "You don't belong here"))))
 
-(use-middleware! auth-middleware)
-
+;; (use-middleware! auth-middleware)
 (get "/"
      (lambda (request #!optional params)
        (let ((cookie-val (cookie-ref "test"))
@@ -69,17 +74,11 @@
        (session-set! "foo" 42)
        welcome-page))
 
-(define (lookup key alist)
-  (let ((pair (assoc key alist)))
-    (if pair
-        (cdr pair)
-        #f)))
-
 (get "/users/:user-id/posts/:post-id"
      (lambda (req params)
-       (let ((user-id (lookup "user-id" params))
-             (post-id (lookup "post-id" params))
-	     (q       (lookup 'kk params)))
+       (let ((user-id (alist-ref "user-id" params eq?))
+             (post-id (alist-ref "post-id" params eq?))
+	     (q       (alist-ref 'kk params)))
 	 (log-dbg "[DBG] params: ~A" params)
          (format "User: ~A, Post: ~A, q: ~A\n" user-id post-id q))))
 
@@ -88,6 +87,7 @@
 	(let ((body (request-body-string request))
 	      (content-type (header-value 'content-type (request-headers request))))
 	  (format "Body: ~A; content-type: ~A" body content-type))))
+
 (get "/tw-demo"
      (lambda (req params)
        (ccup/html
