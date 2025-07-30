@@ -106,7 +106,8 @@
    (let* ((user-info-url (alist-ref 'user-info-url provider))
 	  (access-token (alist-ref 'access_token token))
 	  (request (make-request uri: (uri-reference user-info-url)
-				 headers: (headers `((authorization #(,(string-append "Bearer " access-token) raw)))))))
+				 headers: (headers
+					   `((authorization #(,(string-append "Bearer " access-token) raw)))))))
      (with-input-from-request request #f read-json)))
 
  ;; OAuth2 authentication middleware for Schematra

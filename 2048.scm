@@ -3,34 +3,39 @@
  srfi-1
  random-mtzig
  schematra
- chiccup)
+ chiccup
+ sessions
+ schematra-csrf)
+
+(use-middleware! (session-middleware "secret"))
+(use-middleware! (csrf-middleware))
 
 ;; HTML layout function
 (define (html-layout title body)
   (ccup/html
    `[html (("lang" . "en"))
-      [head
-       [meta (("charset" . "utf-8"))]
-       [meta (("name" . "viewport") ("content" . "width=device-width, initial-scale=1"))]
-       [title ,title]
-       [script (("src" . "https://unpkg.com/htmx.org@1.9.10"))]
-       [script (("src" . "https://cdn.tailwindcss.com"))]]
-      [body ,body]]))
-
-(define (lookup key alist)
-  (let ((pair (assoc key alist)))
-    (if pair
-        (cdr pair)
-        #f)))
+	  [head
+	   [meta (("charset" . "utf-8"))]
+	   [meta (("name" . "viewport") ("content" . "width=device-width, initial-scale=1"))]
+	   [title ,title]
+	   [script (("src" . "https://unpkg.com/htmx.org@1.9.10"))]
+	   [script (("src" . "https://cdn.tailwindcss.com"))]]
+	  [body (("hx-headers" .
+		  ;; add the csrf headers at the root so that it's
+		  ;; available for all htmx requests
+		  ,(format "{&quot;x-csrf-token&quot;:&quot;~A&quot;}" (csrf-get-token))))
+		,body]]))
 
 ;; Game state - 4x4 grid initialized with zeros
-(define game-grid (make-vector 16 0))
+(define game-grid (make-parameter (make-vector 16 0)))
 
 ;; Initialize game with two random tiles
-(define (init-game!)
-  (vector-fill! game-grid 0)
-  (add-random-tile!)
-  (add-random-tile!))
+(define (new-game)
+  (let ((vector (make-vector 16 0)))
+    (parameterize ((game-grid vector))
+      (add-random-tile!)
+      (add-random-tile!))
+    vector))
 
 ;; Generate a random integer from 0 to n-1 using randu!
 (define rand-state (init))
@@ -39,12 +44,12 @@
 
 ;; Add a random tile (2 or 4) to an empty position
 (define (add-random-tile!)
-  (let ((empty-positions (filter (lambda (i) (= (vector-ref game-grid i) 0))
+  (let ((empty-positions (filter (lambda (i) (= (vector-ref (game-grid) i) 0))
                                 (iota 16))))
     (when (not (null? empty-positions))
       (let ((pos (list-ref empty-positions (random-integer (length empty-positions))))
             (value (if (< (random-integer 10) 9) 2 4)))
-        (vector-set! game-grid pos value)))))
+        (vector-set! (game-grid) pos value)))))
 
 ;; Convert 1D index to 2D coordinates
 (define (index->coords i)
@@ -79,7 +84,7 @@
 ;; Render the game grid
 (define (render-grid)
   `[.grid.grid-cols-4.gap-2.bg-gray-300.p-4.rounded-lg
-    ,@(map (lambda (i) (render-tile (vector-ref game-grid i)))
+    ,@(map (lambda (i) (render-tile (vector-ref (game-grid) i)))
            (iota 16))])
 
 ;; Move tiles left in a row
@@ -101,40 +106,46 @@
      (do ((row 0 (+ row 1)))
          ((= row 4))
        (let* ((start (* row 4))
-              (row-values (map (lambda (i) (vector-ref game-grid (+ start i))) (iota 4)))
+              (row-values (map (lambda (i) (vector-ref (game-grid) (+ start i))) (iota 4)))
               (new-row (move-row-left row-values)))
          (do ((col 0 (+ col 1)))
              ((= col 4))
-           (vector-set! game-grid (+ start col) (list-ref new-row col))))))
+           (vector-set! (game-grid) (+ start col) (list-ref new-row col))))))
     ((right)
      (do ((row 0 (+ row 1)))
          ((= row 4))
        (let* ((start (* row 4))
-              (row-values (reverse (map (lambda (i) (vector-ref game-grid (+ start i))) (iota 4))))
+              (row-values (reverse (map (lambda (i) (vector-ref (game-grid) (+ start i))) (iota 4))))
               (new-row (reverse (move-row-left row-values))))
          (do ((col 0 (+ col 1)))
              ((= col 4))
-           (vector-set! game-grid (+ start col) (list-ref new-row col))))))
+           (vector-set! (game-grid) (+ start col) (list-ref new-row col))))))
     ((up)
      (do ((col 0 (+ col 1)))
          ((= col 4))
-       (let* ((col-values (map (lambda (row) (vector-ref game-grid (coords->index row col))) (iota 4)))
+       (let* ((col-values (map (lambda (row) (vector-ref (game-grid) (coords->index row col))) (iota 4)))
               (new-col (move-row-left col-values)))
          (do ((row 0 (+ row 1)))
              ((= row 4))
-           (vector-set! game-grid (coords->index row col) (list-ref new-col row))))))
+           (vector-set! (game-grid) (coords->index row col) (list-ref new-col row))))))
     ((down)
      (do ((col 0 (+ col 1)))
          ((= col 4))
-       (let* ((col-values (reverse (map (lambda (row) (vector-ref game-grid (coords->index row col))) (iota 4))))
+       (let* ((col-values (reverse (map (lambda (row) (vector-ref (game-grid) (coords->index row col))) (iota 4))))
               (new-col (reverse (move-row-left col-values))))
          (do ((row 0 (+ row 1)))
              ((= row 4))
-           (vector-set! game-grid (coords->index row col) (list-ref new-col row))))))))
+           (vector-set! (game-grid) (coords->index row col) (list-ref new-col row))))))))
+(define (action-button label action #!key extra-css)
+  `[button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
+    (("hx-post" . ,(string-append "/2048/move/" action))
+     ,@(if extra-css `(("class" . ,extra-css)) '()))
+    ,label])
 
 ;; Game page content
-(define game-2048-content
-  `[.min-h-screen.bg-gradient-to-br.from-blue-400.to-purple-600.flex.items-center.justify-center.p-4 (("hx-target" . "#game-container") ("hx-swap" . "innerHTML"))
+(define (game-2048-content)
+  `[.min-h-screen.bg-gradient-to-br.from-blue-400.to-purple-600.flex.items-center.justify-center.p-4
+    (("hx-target" . "#game-container") ("hx-swap" . "innerHTML"))
     [.text-center
      [h1.text-4xl.font-bold.text-white.mb-8 "🎮 2048 Game"]
      [\#game-container ,(render-grid)]
@@ -145,36 +156,33 @@
       [.mt-4.text-white
        [p "Use arrow keys or buttons to move tiles"]
        [.grid.grid-cols-2.gap-2.mt-4.max-w-xs.mx-auto
-        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded.col-span-2
-         (("hx-post" . "/2048/move/up"))
-         "↑"]
-        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
-         (("hx-post" . "/2048/move/left"))
-         "←"]
-        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
-         (("hx-post" . "/2048/move/right"))
-         "→"]
-        [button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded.col-span-2
-         (("hx-post" . "/2048/move/down"))
-         "↓"]]]]]])
+	,(action-button "↑" "up" extra-css: "col-span-2")
+	,(action-button "←" "left")
+	,(action-button "→" "right")
+	,(action-button "↓" "down" extra-css: "col-span-2")]]]]])
 
 ;; Routes
 (get "/2048"
-     (lambda (request #!optional params)
-       (init-game!)
-       (html-layout "2048 Game" game-2048-content)))
+     (lambda (request params)
+       (parameterize ((game-grid (or (session-get "game-state" #f) (new-game))))
+	 (session-set! "game-state" (game-grid))
+	 (display (game-grid))
+	 (html-layout "2048 Game" (game-2048-content)))))
 
 (post "/2048/new-game"
-      (lambda (request #!optional params)
-        (init-game!)
-        (ccup/html (render-grid))))
+      (lambda (request params)
+	(parameterize ((game-grid (new-game)))
+	  (session-set! "game-state" (game-grid))
+          (ccup/html (render-grid)))))
 
 (post "/2048/move/:direction"
       (lambda (request params)
-        (let ((direction (string->symbol (lookup "direction" params))))
-          (move-tiles direction)
-          (add-random-tile!)
-          (ccup/html (render-grid)))))
+	(parameterize ((game-grid (session-get "game-state")))
+          (let ((direction (string->symbol (alist-ref "direction" params equal?))))
+            (move-tiles direction)
+            (add-random-tile!)
+	    (session-set! "game-state" (game-grid))
+            (ccup/html (render-grid))))))
 
 (schematra-install)
 (schematra-start development?: #t)

@@ -5,7 +5,7 @@ CSC = csc
 CSCFLAGS = -shared -J
 
 # Module names
-MODULES = chiccup schematra chiccup sessions oauthtoothy
+MODULES = chiccup schematra chiccup sessions oauthtoothy schematra-csrf
 
 # Default target
 all: $(addsuffix .so, $(MODULES))
