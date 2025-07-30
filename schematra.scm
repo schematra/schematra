@@ -440,39 +440,41 @@
 
  ;; router
  (define (schematra-router continue)
-   (condition-case
-    (let* ((request (current-request))
-           (headers (request-headers request))
-           (raw-cookies (header-values 'cookie headers))
-           (method (request-method request))
-           (uri (request-uri request))
-           (normalized-path (normalize-path (uri-path uri)))
-           (route-handlers
-            (cond
-             [(eq? method 'GET) get-routes]
-             [(eq? method 'POST) post-routes]
-             [else (error "no handlers for this method")]))
-           (resource (find-resource normalized-path route-handlers)))
-      (if resource
-          (parameterize ((request-cookies (alist->hash-table raw-cookies))
-			 (response-cookies (make-hash-table)))
-	    (let* ((handler (car resource))
-		   (route-params (cadr resource))
-		   (params (append route-params (uri-query uri)))
-		   (response (apply-middleware-stack request params handler)))
-	      (with-headers (cookies->headers (response-cookies))
-			    (lambda ()
-			      (parse-response response)))))
-          (continue)))
-    [exn (s-halt)
-	 (let ((status (get-condition-property exn 's-halt 'status))
-	       (body   (get-condition-property exn 's-halt 'body))
-	       (headers (get-condition-property exn 's-halt 'headers)))
-	   (send-response
-	    status: status
-	    body: body
-	    headers: (or headers '())))]
-    [var () (send-response status: 500 body: "lolwut")]))
+   (let* ((request (current-request))
+          (headers (request-headers request))
+          (raw-cookies (header-values 'cookie headers))
+          (method (request-method request))
+          (uri (request-uri request))
+          (normalized-path (normalize-path (uri-path uri)))
+          (route-handlers
+           (cond
+            [(eq? method 'GET) get-routes]
+            [(eq? method 'POST) post-routes]
+            [else (error "no handlers for this method")]))
+          (resource (find-resource normalized-path route-handlers)))
+     (if resource
+         (parameterize ((request-cookies (alist->hash-table raw-cookies))
+			(response-cookies (make-hash-table)))
+	   (let* ((handler (car resource))
+		  (route-params (cadr resource))
+		  (params (append route-params (uri-query uri))))
+	     (condition-case
+	      (let ((response (apply-middleware-stack request params handler)))
+		(with-headers (cookies->headers (response-cookies))
+			      (lambda ()
+				(parse-response response))))
+	      [exn (s-halt)
+		   (let ((status (get-condition-property exn 's-halt 'status))
+			 (body   (get-condition-property exn 's-halt 'body))
+			 (headers (get-condition-property exn 's-halt 'headers)))
+		     (display (response-cookies)) (newline)
+		     (with-headers (cookies->headers (response-cookies))
+				   (lambda ()
+				     (send-response
+				      status: status
+				      body: body
+				      headers: (or headers '())))))])))
+         (continue))))
 
  ;; Install the Schematra router as a virtual host handler
  ;; 
