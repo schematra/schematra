@@ -154,14 +154,15 @@
 			      (deserialize-session session-cookie secret-key)
 			      (make-hash-table))))
        (parameterize ((session session-data))
-	 (let ((response (next)))
-	   ;; save session back to cookie if needed
-	   (if (hash-table-exists? session-data session-dirty-key)
-	       (cookie-set! (session-key)
-			    (serialize-session session-data secret-key)
-			    http-only: #t
-			    max-age: (session-max-age)))
-	   response)))))
+	 (dynamic-wind
+	     (lambda () #f)     ;; before thunk - do nothing
+	     (lambda () (next)) ;; main thun - continue the middleware stack
+	     (lambda ()         ;; after thunk - always run
+	       (if (hash-table-exists? session-data session-dirty-key)
+		   (cookie-set! (session-key)
+				(serialize-session session-data secret-key)
+				http-only: #t
+				max-age: (session-max-age)))))))))
 
  (define (serialize-session session-hash secret-key)
    ;; don't serialize the modified key
