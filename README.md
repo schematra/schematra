@@ -27,7 +27,10 @@ I created Schematra because I wanted to:
 First, make sure you have [CHICKEN Scheme](https://call-cc.org/) installed. Then install the required dependencies:
 
 ```bash
-chicken-install spiffy intarweb uri-common srfi-1 srfi-13 srfi-18 format
+chicken-install spiffy intarweb uri-common \
+  srfi-1 srfi-13 srfi-18 srfi-69 \
+  format random-mtzig message-digest \
+  hmac sha2 base64 medea openssl http-client
 ```
 
 For development mode, you'll also need:
@@ -36,12 +39,10 @@ For development mode, you'll also need:
 chicken-install nrepl
 ```
 
-Next step would be to build schematra & chiccup:
+Next step would be to build schematra & the core modules:
 
 ```bash
-csc -s schematra.scm -j schematra
-csc -s chiccup.scm -j chiccup
-csc -s sessions.scm -j sessions
+make
 ```
 
 ## Quick Start
@@ -104,11 +105,161 @@ Schematra supports URL parameters using the `:parameter` syntax, as well as quer
      (lambda (req params)
        (let ((user-id (lookup "user-id" params))
              (post-id (lookup "post-id" params))
-			 (q       (lookup 'q params))) ;; query params use symbol params
+			 (q       (lookup 'q params))) ;; query params use symbol keys
          (format "User: ~A, Post: ~A" user-id post-id))))
 ```
 
 The `params` argument contains both URL parameters (with string keys) and query parameters (with symbol keys).
+
+## Route Handlers
+
+Route handlers are functions that process HTTP requests and generate responses. Understanding how they work and what they should return is crucial for building Schematra applications.
+
+### Handler Function Signature
+
+Every route handler must accept exactly two arguments:
+
+```scheme
+(define (my-handler request params)
+  ;; Handler implementation
+  )
+```
+
+- **`request`**: The [intarweb](https://wiki.call-cc.org/eggref/5/intarweb#requests) request object containing headers, method, URI, and request port
+- **`params`**: An association list containing both URL path parameters and query parameters
+
+### The Request Object
+
+The `request` parameter provides access to all aspects of the HTTP request:
+
+```scheme
+(get "/debug"
+     (lambda (req params)
+       (let ((method (request-method req))          ; 'GET, 'POST, etc.
+             (uri (request-uri req))                ; Full URI object
+             (headers (request-headers req))        ; Request headers
+             (port (request-port req)))             ; Input port for body
+         (format "Method: ~A, Path: ~A" 
+                 method 
+                 (uri-path uri)))))
+```
+
+Common request operations:
+- `(request-method request)` - Get HTTP method (GET, POST, etc.)
+- `(request-uri request)` - Get URI object with path, query, etc. (see [uri-common](https://wiki.call-cc.org/eggref/5/uri-common))
+- `(request-headers request)` - Get request headers
+- `(request-body-string request)` - Read request body as string (useful for POST data)
+
+### The Params Argument
+
+The `params` argument is an association list containing two types of parameters:
+
+1. **Path Parameters** (string keys): Extracted from URL segments starting with `:`
+2. **Query Parameters** (symbol keys): Extracted from the URL query string
+
+```scheme
+;; Route: /users/:id?format=json&limit=10
+;; URL: /users/123?format=json&limit=10
+;; params = (("id" . "123") (format . "json") (limit . "10"))
+
+(get "/users/:id"
+     (lambda (req params)
+       (let ((user-id (alist-ref "id" params equal?))      ; Path param (string key)
+             (format (alist-ref 'format params))           ; Query param (symbol key)
+             (limit (alist-ref 'limit params)))            ; Query param (symbol key)
+         (format "User ~A, format: ~A, limit: ~A" user-id format limit))))
+```
+
+### Handler Return Values
+
+Route handlers can return different types of values, which Schematra automatically converts to the corresponding [intarweb response](https://wiki.call-cc.org/eggref/5/intarweb#responses):
+
+#### 1. String Response (Most Common)
+
+Return a string to send a 200 OK response with that string as the body:
+
+```scheme
+(get "/hello"
+     (lambda (req params)
+       "Hello, World!"))  ; Returns 200 OK with "Hello, World!" body
+```
+
+#### 2. Response List
+
+Return a list in the format `(status body [headers])` for full control over the response:
+
+```scheme
+(get "/custom"
+     (lambda (req params)
+       '(created "Resource created successfully")))  ; Returns 201 Created
+
+(get "/with-headers"
+     (lambda (req params)
+       '(ok "Success" ((content-type . "text/plain")))))  ; With custom headers
+```
+
+Some common valid status symbols include:
+- `ok` (200)
+- `created` (201)
+- `found` (302) - for redirects
+- `bad-request` (400)
+- `unauthorized` (401)
+- `forbidden` (403)
+- `not-found` (404)
+- `internal-server-error` (500)
+- And [many others](https://wiki.call-cc.org/eggref/5/intarweb#responses) following HTTP status code conventions
+
+#### 3. Halting the routing
+
+Schematra provides helper functions for common response patterns:
+
+```scheme
+;; Redirect to another URL
+(get "/old-page"
+     (lambda (req params)
+       (redirect "/new-page")))  ; 302 redirect
+
+;; Halt with specific status and message
+(get "/admin"
+     (lambda (req params)
+       (if (not (authenticated? req))
+           (halt 'unauthorized "Access denied")
+           "Welcome to admin panel")))
+```
+
+Redirect and halt both generate a specific signal that's captured by the main router and short-circuit any other processing: no other middleware or part of the route handler will be executed.
+
+### HTML Responses with Chiccup
+
+For HTML responses, use the included Chiccup template system:
+
+```scheme
+(import chiccup)
+
+(get "/page"
+     (lambda (req params)
+       (ccup/html
+        `[html
+          [head [title "My Page"]]
+          [body
+           [h1 "Welcome"]
+           [p "This is generated HTML"]]])))
+```
+
+### Working with Request Bodies
+
+For POST requests, you can easily access the request body using `request-body-string`:
+
+```scheme
+(post "/submit"
+      (lambda (req params)
+        (let ((body (request-body-string req)))
+          (if (string=? body "")
+              '(bad-request "Empty request body")
+              (format "Received: ~A" body)))))
+```
+
+Since you have access to the intarweb request object, you can also access the object and its port directly if you want.
 
 ## Middleware
 
@@ -316,9 +467,9 @@ You can customize session behavior using parameters:
 **This is a toy project!** Schematra is still in early development and should not be used for production applications. It's missing many features you'd expect from a mature web framework:
 
 - Limited error handling
-- No template engine (but you can use the included chiccup, a [hiccup](https://github.com/weavejester/hiccup)-inspired template system)
+- No template engine, but you can use the included chiccup, a [hiccup](https://github.com/weavejester/hiccup)-inspired template system.
 - No database integration (but you can use any [database egg](https://eggs.call-cc.org/5/#db))
-- No background job system
+- No background job system (working on one though)
 - Limited security features
 
 However, it's perfect for:
