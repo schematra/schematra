@@ -136,17 +136,25 @@
          (do ((row 0 (+ row 1)))
              ((= row 4))
            (vector-set! (game-grid) (coords->index row col) (list-ref new-col row))))))))
+
 (define (action-button label action #!key extra-css)
   `[button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
     (("hx-post" . ,(string-append "/2048/move/" action))
      ,@(if extra-css `(("class" . ,extra-css)) '()))
     ,label])
 
+(define (footer)
+  `[.mt-8.text-center.text-white.text-sm.opacity-75
+    [p "made with "
+       [a.underline.hover:opacity-100 (("href" . "https://github.com/rolandoam/schematra") ("target" . "_blank")) "schematra"] 
+       " & "
+       [a.underline.hover:opacity-100 (("href" . "https://htmx.org") ("target" . "_blank")) "htmx"]]])
+
 ;; Game page content
 (define (game-2048-content)
-  `[.min-h-screen.bg-gradient-to-br.from-blue-400.to-purple-600.flex.items-center.justify-center.p-4
+  `[.min-h-screen.bg-gradient-to-br.from-blue-400.to-purple-600.flex.flex-col.items-center.justify-center.p-4
     (("hx-target" . "#game-container") ("hx-swap" . "innerHTML"))
-    [.text-center
+    [.text-center.flex-grow.flex.flex-col.justify-center
      [h1.text-4xl.font-bold.text-white.mb-8 "🎮 2048 Game"]
      [\#game-container ,(render-grid)]
      [.mt-8.space-x-4
@@ -159,14 +167,14 @@
 	,(action-button "↑" "up" extra-css: "col-span-2")
 	,(action-button "←" "left")
 	,(action-button "→" "right")
-	,(action-button "↓" "down" extra-css: "col-span-2")]]]]])
+	,(action-button "↓" "down" extra-css: "col-span-2")]]]]
+    ,(footer)])
 
 ;; Routes
 (get "/2048"
      (lambda (request params)
        (parameterize ((game-grid (or (session-get "game-state" #f) (new-game))))
 	 (session-set! "game-state" (game-grid))
-	 (display (game-grid))
 	 (html-layout "2048 Game" (game-2048-content)))))
 
 (post "/2048/new-game"
@@ -178,9 +186,11 @@
 (post "/2048/move/:direction"
       (lambda (request params)
 	(parameterize ((game-grid (session-get "game-state")))
-          (let ((direction (string->symbol (alist-ref "direction" params equal?))))
+          (let ((direction (string->symbol (alist-ref "direction" params equal?)))
+		(old-grid (vector-copy (game-grid))))
             (move-tiles direction)
-            (add-random-tile!)
+	    (when (not (equal? old-grid (game-grid)))
+              (add-random-tile!))
 	    (session-set! "game-state" (game-grid))
             (ccup/html (render-grid))))))
 
