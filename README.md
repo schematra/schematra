@@ -326,24 +326,6 @@ Middleware functions have the following signature:
 (use-middleware! auth-middleware)
 ```
 
-#### Request Processing Middleware
-
-```scheme
-(define (json-middleware request params next)
-  (let* ((content-type (header-value 'content-type (request-headers request)))
-         (is-json? (and content-type (string-contains content-type "application/json"))))
-    (if is-json?
-        (let* ((body (request-body-string request))
-               (parsed-json (parse-json body))
-               ;; Add parsed JSON to params
-               (enhanced-params (cons `(json . ,parsed-json) params)))
-          ;; Call next with enhanced params
-          (next request enhanced-params))
-        (next))))
-
-(use-middleware! json-middleware)
-```
-
 ### Middleware Execution Order
 
 Middleware is executed in the order it's installed with `use-middleware!`. The first middleware installed runs first on the request, and last on the response:
