@@ -1,6 +1,7 @@
 (import
  format
- srfi-1
+ srfi-1   ;; iota & others
+ srfi-133 ;; vector-copy
  random-mtzig
  schematra
  chiccup
