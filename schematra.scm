@@ -22,6 +22,7 @@
   schematra-default-vhost
   ;; Procedures
   get post
+  sse write-sse-data
   halt redirect
   log-err log-dbg
   cookie-set! cookie-delete! cookie-ref
@@ -36,6 +37,7 @@
   chicken.base
   chicken.io
   chicken.condition
+  chicken.string
   spiffy
   format
   intarweb
@@ -274,6 +276,28 @@
  ;;   signature, path parameters, query parameters, and return values. POST handlers
  ;;   work identically to GET handlers in terms of parameter handling and responses.
  (define-verb post)
+
+ ;; SSE requests
+ (define (sse path handler)
+   (get path
+	(lambda (req params)
+	  (parameterize ((current-response
+			  (update-response (current-response)
+					   headers: (headers `((content-type text/event-stream)
+							       (cache-control no-cache)
+							       (connection keep-alive)
+							       (access-control-allow-origin *)
+							       (access-control-allow-credentials true))))))
+	    (write-logged-response)
+	    (handler req params)))))
+
+ ;; helper to send sse-data
+ (define (write-sse-data data #!key id event)
+   (let ((msg (conc (if id (conc "id: " id "\n") "")
+		    (if event (conc "event: " event "\n") "")
+		    "data: " data "\n\n")))
+     (display msg (response-port (current-response)))
+     (finish-response-body (current-response))))
 
  (define (halt status #!optional body headers)
    (signal (condition `(s-halt status ,status body ,body headers ,headers))))
