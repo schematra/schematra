@@ -28,6 +28,10 @@
 	 (chicken base)
 	 (chicken string))
 
+ ;; https://developer.mozilla.org/en-US/docs/Glossary/Void_element
+ (define void-elements
+   '(area base br col embed hr img input link meta source track wbr))
+
  ;; Return a list of substrings of STR split on '.'.
  ;; e.g. "foo.bar" => '("foo" "bar")
  (define (split-on-dot str)
@@ -67,19 +71,19 @@
 	  (tag-name (cond
 		     ((or starts-with-hash? starts-with-dot? (string=? first-part "")) "div")
 		     (else first-part))))
-     (list tag-name class-list id-str)))
+     (list (string->symbol (string-downcase tag-name)) class-list id-str)))
 
  ;; Convert a parsed selector specification into an attribute alist.
  ;;
  ;; SPEC-LIST should be a list of the form (tag classes id) where:
- ;;   - tag is a string representing the HTML tag name
+ ;;   - tag is a symbol representing the HTML tag name
  ;;   - classes is a list of strings representing CSS classes
  ;;   - id is a string or #f representing the element ID
  ;;
  ;; Returns an alist of (attr-name . attr-value) pairs suitable for HTML element
  ;; attributes. Empty when given invalid input.
  ;;
- ;; Example: '("div" ("btn" "primary") "submit") =>
+ ;; Example: '(div ("btn" "primary") "submit") =>
  ;;          '(("class" . "btn primary") ("id" . "submit"))
  (define (build-attrs spec-list)
    (if (= (length spec-list) 3)
@@ -164,5 +168,11 @@
 				       (else (format "~A" part))))
 				    body-parts)))))
      ;; finally render
-     (string-append "<" tag attr-str ">" body-str "</" tag ">")))
+     (if (member tag void-elements)
+	 (begin
+	   (when (not (null? body-parts))
+	     (error (format "Void element '~a' cannot have body content: ~a" tag body-parts)))
+	   (conc "<" tag attr-str ">"))
+	 (let ((prefix (if (eq? tag 'html) "!DOCTYPE " "")))
+	   (conc "<" prefix tag attr-str ">" body-str "</" tag ">")))))
  ) ;; end module
