@@ -277,7 +277,61 @@
  ;;   work identically to GET handlers in terms of parameter handling and responses.
  (define-verb post)
 
- ;; SSE requests
+ ;; Register a Server-Sent Events (SSE) endpoint
+ ;;
+ ;; Creates an SSE endpoint that can stream real-time data to web browsers.
+ ;; SSE provides a simple way to push data from server to client over a persistent
+ ;; HTTP connection, perfect for live updates, notifications, and real-time features.
+ ;;
+ ;; Parameters:
+ ;;   path: string - URL path for the SSE endpoint (e.g., "/events", "/chat/:room")
+ ;;   handler: procedure - Function that handles the SSE connection
+ ;;
+ ;; Handler Function:
+ ;;   The handler function receives the same arguments as regular route handlers:
+ ;;     request: HTTP request object
+ ;;     params: association list of path and query parameters
+ ;;
+ ;;   Unlike regular handlers, SSE handlers typically run in a loop to continuously
+ ;;   send data. The handler should call write-sse-data to send events to the client.
+ ;;
+ ;; Automatic Headers:
+ ;;   The sse function automatically sets the required SSE headers:
+ ;;   - Content-Type: text/event-stream
+ ;;   - Cache-Control: no-cache
+ ;;   - Connection: keep-alive
+ ;;
+ ;; Client-Side Usage:
+ ;;   Connect to SSE endpoints using JavaScript EventSource or HTMX SSE extension:
+ ;;   
+ ;;   JavaScript:
+ ;;     const eventSource = new EventSource('/events');
+ ;;     eventSource.onmessage = function(event) {
+ ;;       console.log('Received:', event.data);
+ ;;     };
+ ;;
+ ;;   HTMX:
+ ;;     <div hx-ext="sse" sse-connect="/events" sse-swap="message"></div>
+ ;;
+ ;; Example usage:
+ ;;   ;; Simple time server
+ ;;   (sse "/time"
+ ;;        (lambda (req params)
+ ;;          (let loop ()
+ ;;            (write-sse-data (current-time-string) event: "time-update")
+ ;;            (thread-sleep! 1)
+ ;;            (loop))))
+ ;;
+ ;;   ;; Chat room with parameters
+ ;;   (sse "/chat/:room"
+ ;;        (lambda (req params)
+ ;;          (let ((room (alist-ref "room" params equal?)))
+ ;;            (let loop ()
+ ;;              (let ((messages (get-room-messages room)))
+ ;;                (when (new-messages? messages)
+ ;;                  (write-sse-data (format-message messages) event: "message"))
+ ;;                (thread-sleep! 1)
+ ;;                (loop))))))
  (define (sse path handler)
    (get path
 	(lambda (req params)
@@ -285,13 +339,64 @@
 			  (update-response (current-response)
 					   headers: (headers `((content-type text/event-stream)
 							       (cache-control no-cache)
-							       (connection keep-alive)
-							       (access-control-allow-origin *)
-							       (access-control-allow-credentials true))))))
+							       (connection keep-alive))))))
 	    (write-logged-response)
 	    (handler req params)))))
 
- ;; helper to send sse-data
+ ;; Send data to an SSE client
+ ;;
+ ;; This function sends a Server-Sent Events message to the connected client.
+ ;; It formats the data according to the SSE protocol specification and writes
+ ;; it to the response stream. This function should only be called within an
+ ;; SSE handler registered with the 'sse' function.
+ ;;
+ ;; Parameters:
+ ;;   data: string - The message data to send to the client
+ ;;
+ ;; Keyword Parameters:
+ ;;   id: string or #f - Optional event ID for client-side event tracking (default: #f)
+ ;;       When provided, the client can use this ID to resume connections and
+ ;;       avoid duplicate events. The browser will send this ID in the
+ ;;       Last-Event-ID header when reconnecting.
+ ;;
+ ;;   event: string or #f - Optional event type name (default: #f)
+ ;;          When provided, the client can listen for specific event types.
+ ;;          Without this, the client receives generic "message" events.
+ ;;
+ ;; SSE Message Format:
+ ;;   The function automatically formats messages according to SSE protocol:
+ ;;   - "id: <id>\n" (if id provided)
+ ;;   - "event: <event>\n" (if event provided)  
+ ;;   - "data: <data>\n"
+ ;;   - "\n" (blank line to end message)
+ ;;
+ ;; Client-Side Handling:
+ ;;   JavaScript EventSource API:
+ ;;     eventSource.addEventListener('custom-event', function(e) {
+ ;;       console.log('ID:', e.lastEventId, 'Data:', e.data);
+ ;;     });
+ ;;
+ ;;   HTMX SSE Extension:
+ ;;     <div sse-swap="custom-event">Content updated by custom-event</div>
+ ;;
+ ;; Example usage:
+ ;;   ;; Simple message
+ ;;   (write-sse-data "Hello, client!")
+ ;;
+ ;;   ;; Message with event type
+ ;;   (write-sse-data "New notification" event: "notification")
+ ;;
+ ;;   ;; Message with ID and event type
+ ;;   (write-sse-data "Chat message" id: "msg-123" event: "chat")
+ ;;
+ ;;   ;; HTML content for HTMX
+ ;;   (write-sse-data (ccup/html `[div.alert "Server alert!"]) event: "update")
+ ;;
+ ;; Connection Management:
+ ;;   - Each call sends one complete SSE message
+ ;;   - The connection remains open for subsequent calls
+ ;;   - Connection closes when the handler function exits
+ ;;   - Clients automatically reconnect on connection loss
  (define (write-sse-data data #!key id event)
    (let ((msg (conc (if id (conc "id: " id "\n") "")
 		    (if event (conc "event: " event "\n") "")
