@@ -181,9 +181,6 @@
                (list target-segment handler)
                (list target-segment #f (add-resource remaining-path (list (car remaining-path) #f) handler)))]))))
 
- ;; empty routes. each verb has a list of routes
- (define get-routes (make-path-tree))
- (define post-routes (make-path-tree))
  (define development-mode? #f)
 
  (define (normalize-path path-list)
@@ -205,12 +202,11 @@
    (er-macro-transformer
     (lambda (exp rename compare)
       (let* ((verb         (cadr exp))
-	     (routes-name  (string->symbol (string-append (symbol->string verb) "-routes")))
-	     (routes-param (rename routes-name)))
-	`(define (,verb path thunk)
+	     (routes-name  (string->symbol (string-append (symbol->string verb) "-routes"))))
+	`(define (,verb path handler)
 	   (let ((raw-uri-path (uri-path (uri-reference path))))
-	     (set! ,routes-param
-		   (add-resource (normalize-path raw-uri-path) ,routes-param thunk))))))))
+	     (set! ,routes-name
+		   (add-resource (normalize-path raw-uri-path) ,routes-name handler))))))))
 
  ;; Register a GET route handler
  ;;
@@ -261,6 +257,7 @@
  ;;                (post-id (alist-ref "post-id" params equal?)))
  ;;            (format "User ~A, Post ~A" user-id post-id))))
  (define-verb get)
+ (define get-routes (make-path-tree))
 
  ;; Register a POST route handler
  ;;
@@ -276,6 +273,9 @@
  ;;   signature, path parameters, query parameters, and return values. POST handlers
  ;;   work identically to GET handlers in terms of parameter handling and responses.
  (define-verb post)
+ (define post-routes (make-path-tree))
+ (define-verb put)
+ (define put-routes (make-path-tree))
 
  ;; Register a Server-Sent Events (SSE) endpoint
  ;;

@@ -446,15 +446,16 @@ You can customize session behavior using parameters:
 
 ## Current Status
 
-**This is a toy project!** Schematra is still in early development and should not be used for production applications. It's missing many features you'd expect from a mature web framework:
+**This is still an exploration project!** Schematra is still in early development and should not be used for production applications. Currently we have:
 
 - Limited error handling
-- No template engine, but you can use the included chiccup, a [hiccup](https://github.com/weavejester/hiccup)-inspired template system.
-- No database integration (but you can use any [database egg](https://eggs.call-cc.org/5/#db))
-- No background job system (working on one though)
-- Limited security features
+- Simple HTML rendering library [chiccup](chiccup.scm), a [hiccup](https://github.com/weavejester/hiccup)-inspired rendering engine.
+- Middleware system, with a couple of core modules to provide some basic services ([sessions](sessions.scm), [csrf](schematra-csrf.scm), [oauth2](oauthtoothy.scm))
+- SSE support (will add WebSockets soon)
+- No database integration, but you can use any [database egg](https://eggs.call-cc.org/5/#db) and create a middleware to provide a persistance layer.
+- No background job system (working on one though, using the [hiredis wrapper](https://github.com/rolandoam/chicken-hiredis/))
 
-However, it's perfect for:
+While not ready for production, it's perfect for:
 - Learning Scheme
 - Prototyping simple web applications
 - Experimenting with htmx and Tailwind CSS

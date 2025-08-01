@@ -33,6 +33,11 @@
     [button.px-4.py-2.bg-blue-600.text-white.rounded-md.hover:bg-blue-700.focus:outline-none.focus:ring-2.focus:ring-blue-500.focus:ring-offset-2.transition-colors
      "Send"]])
 
+;; instructions:
+;; open one browser pointing to this app, then use another browser or an incognito session and open the app.
+;; You should be able to chat between the different tabs/windows.
+;; By default spiffy allows up to 1024 simultaneous connections. You're using one on each SSE route.
+;; To change the amount of max connections you can use the parameter `max-connections` (see: https://wiki.call-cc.org/eggref/5/spiffy#configuration-parameters)
 (get "/"
      (lambda (req params)
        (ccup/html
