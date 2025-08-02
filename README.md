@@ -24,26 +24,15 @@ I created Schematra because I wanted to:
 
 ## Installation
 
-First, make sure you have [CHICKEN Scheme](https://call-cc.org/) installed. Then install the required dependencies:
+First, make sure you have [CHICKEN Scheme](https://call-cc.org/) installed. Once you have it installed, you can install schematra as an egg:
 
-```bash
-chicken-install spiffy intarweb uri-common \
-  srfi-1 srfi-13 srfi-18 srfi-69 \
-  format random-mtzig message-digest \
-  hmac sha2 base64 medea openssl http-client
+```sh
+git clone https://github.com/rolandoam/schematra
+cd schematra
+chicken-install
 ```
 
-For development mode, you'll also need:
-
-```bash
-chicken-install nrepl
-```
-
-Next step would be to build schematra & the core modules:
-
-```bash
-make
-```
+That will download the dependencies and install the core modules so that they're available system-wide.
 
 ## Quick Start
 

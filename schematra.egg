@@ -1,0 +1,26 @@
+;;; awful.egg -*- scheme -*-
+
+((synopsis
+  "Schematra is a minimalistic web server built on top of spiffy")
+ (author "Rolando Abarca")
+ (license "GPL3")
+ (category web)
+ (dependencies json
+               spiffy
+	       format
+	       openssl
+	       message-digest
+	       hmac sha2 base64
+	       http-client medea
+               srfi-1
+               srfi-13
+	       srfi-18
+               srfi-69)
+ (component-options
+  (csc-options "-O3" "-d0"))
+ (components (extension chiccup)
+	     (extension schematra)
+	     (extension sessions)
+	     (extension oauthtoothy)
+	     (extension schematra-csrf)))
+
