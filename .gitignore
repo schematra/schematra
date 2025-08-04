@@ -2,3 +2,7 @@
 *~
 *.import.scm
 *.so
+*.link
+*.static.o
+*.build.sh
+*.install.sh
