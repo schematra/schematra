@@ -12,6 +12,7 @@
 	       message-digest
 	       hmac sha2 base64
 	       http-client medea
+	       nrepl
                srfi-1
                srfi-13
 	       srfi-18
