@@ -1,6 +1,8 @@
 # Schematra
 
-![Schematra Logo](logo.png)
+<img src="logo.png" alt="Schematra Logo" width="600px"/>
+
+*A Sinatra love letter in Scheme*
 
 A minimal web framework for [CHICKEN Scheme](https://call-cc.org/), inspired by [Sinatra](https://sinatrarb.com/). Schematra is currently an early exploration project created for learning purposes, but hopefully it will grow into something more useful over time.
 
