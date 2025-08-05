@@ -414,9 +414,114 @@
      (display msg (response-port (current-response)))
      (finish-response-body (current-response))))
 
+ ;; Immediately halt request processing and send an HTTP response
+ ;;
+ ;; This function stops the current request handler execution and sends an HTTP
+ ;; response with the specified status, body, and headers. It works by signaling
+ ;; a special halt-condition that is caught by the router and converted into an
+ ;; HTTP response.
+ ;;
+ ;; This is useful for early returns from handlers, error responses, or any
+ ;; situation where you need to bypass normal handler flow and send a response
+ ;; immediately.
+ ;;
+ ;; Parameters:
+ ;;   status: symbol - HTTP status code symbol (e.g., 'ok, 'not-found, 'internal-server-error)
+ ;;           Common status symbols include:
+ ;;           - 'ok (200), 'created (201), 'accepted (202)
+ ;;           - 'moved-permanently (301), 'found (302), 'see-other (303)
+ ;;           - 'bad-request (400), 'unauthorized (401), 'forbidden (403), 'not-found (404)
+ ;;           - 'internal-server-error (500), 'bad-gateway (502), 'service-unavailable (503)
+ ;;
+ ;;   body: string or #f - Response body content (default: #f for empty body)
+ ;;         The content that will be sent to the client as the response body.
+ ;;
+ ;;   headers: alist or #f - Additional HTTP headers to include (default: #f for no extra headers)
+ ;;            List of header name/value pairs in the format: '((header-name . value) ...)
+ ;;            Example: '((content-type . "application/json") (cache-control . "no-cache"))
+ ;;
+ ;; Behavior:
+ ;;   - Immediately stops execution of the current handler
+ ;;   - Does not return to the calling code
+ ;;   - Bypasses any remaining middleware or handler logic
+ ;;   - Sends the specified response to the client
+ ;;   - Can be called from anywhere within a request handler or middleware
+ ;;
+ ;; Example usage:
+ ;;   ;; Simple error response
+ ;;   (halt 'not-found "Page not found")
+ ;;
+ ;;   ;; JSON API error with custom headers
+ ;;   (halt 'bad-request 
+ ;;         "{\"error\": \"Invalid input\"}"
+ ;;         '((content-type . "application/json")))
+ ;;
+ ;;   ;; Authentication check with early return
+ ;;   (get "/admin" 
+ ;;        (lambda (req params)
+ ;;          (unless (authenticated? req)
+ ;;            (halt 'unauthorized "Access denied"))
+ ;;          ;; Continue with admin logic...
+ ;;          "Admin dashboard"))
+ ;;
+ ;;   ;; Custom status with no body
+ ;;   (halt 'no-content)
  (define (halt status #!optional body headers)
    (signal (condition `(halt-condition status ,status body ,body headers ,headers))))
 
+ ;; Redirect the client to a different URL
+ ;;
+ ;; This function sends an HTTP redirect response to the client, instructing their
+ ;; browser to navigate to a different URL. It's a convenience wrapper around the
+ ;; halt function that automatically sets the appropriate Location header and
+ ;; redirect status code.
+ ;;
+ ;; Parameters:
+ ;;   location: string or uri - The target URL to redirect to
+ ;;             Can be an absolute URL ("https://example.com/page") or relative path ("/login")
+ ;;             If a string is provided, it will be converted to a URI reference
+ ;;
+ ;;   status: symbol - HTTP redirect status code (default: 'found for 302 Found)
+ ;;           Common redirect status codes:
+ ;;           - 'moved-permanently (301): Permanent redirect, search engines update their index
+ ;;           - 'found (302): Temporary redirect, most common for user actions
+ ;;           - 'see-other (303): Redirect after POST to prevent duplicate submissions
+ ;;           - 'temporary-redirect (307): Like 302 but preserves request method
+ ;;           - 'permanent-redirect (308): Like 301 but preserves request method
+ ;;
+ ;; Behavior:
+ ;;   - Immediately halts current handler execution (does not return)
+ ;;   - Sets the Location header to the specified URL
+ ;;   - Sends empty response body (as per HTTP redirect specification)
+ ;;   - Client browser automatically navigates to the new location
+ ;;
+ ;; SEO and Caching Considerations:
+ ;;   - Use 'moved-permanently (301) for URLs that have permanently changed
+ ;;   - Use 'found (302) for temporary redirects or user-initiated actions
+ ;;   - Use 'see-other (303) after POST requests to prevent form resubmission
+ ;;
+ ;; Example usage:
+ ;;   ;; Simple redirect to login page
+ ;;   (redirect "/login")
+ ;;
+ ;;   ;; Permanent redirect for moved content
+ ;;   (redirect "/new-location" 'moved-permanently)
+ ;;
+ ;;   ;; Redirect after successful form submission
+ ;;   (post "/submit"
+ ;;         (lambda (req params)
+ ;;           (process-form-data params)
+ ;;           (redirect "/success" 'see-other)))
+ ;;
+ ;;   ;; External redirect
+ ;;   (redirect "https://external-site.com/page")
+ ;;
+ ;;   ;; Conditional redirect based on authentication
+ ;;   (get "/dashboard"
+ ;;        (lambda (req params)
+ ;;          (if (authenticated? req)
+ ;;              "Welcome to your dashboard"
+ ;;              (redirect "/login"))))
  (define (redirect location #!optional (status 'found))
    (let ((location (if (string? location) (uri-reference location) location)))
      (halt status "" `((location . (,location))))))
