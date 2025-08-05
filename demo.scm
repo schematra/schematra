@@ -108,5 +108,12 @@
      (lambda (req params)
        (ccup/html `[p "Button was clicked!"])))
 
+(get "/test-halt"
+     (lambda (req params)
+       (session-set! "something" "useful")
+       (cookie-set! "foo" "bar" http-only: #t)
+       (halt 'ok "you're halted\n" `((content-type text/foo)))
+       '(ok "this should not be sent" ((x-foo-bar "some value")))))
+
 (schematra-install)
 (schematra-start development?: #t)

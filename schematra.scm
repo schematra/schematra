@@ -35,17 +35,22 @@
  (import scheme)
  (import
   chicken.base
+  chicken.platform ;; chicken-version
   chicken.io
   chicken.condition
   chicken.string
   spiffy
   format
-  intarweb
   uri-common
+  (rename intarweb (headers intarweb:headers))
   srfi-1
   srfi-13
   srfi-18
   srfi-69)
+
+ (define version-major "0")
+ (define version-minor "1")
+ (define version-patch "1")
 
  ;; Default virtual host pattern for Schematra routing
  ;;
@@ -335,13 +340,16 @@
  (define (sse path handler)
    (get path
 	(lambda (req params)
-	  (parameterize ((current-response
-			  (update-response (current-response)
-					   headers: (headers `((content-type text/event-stream)
-							       (cache-control no-cache)
-							       (connection keep-alive))))))
-	    (write-logged-response)
-	    (handler req params)))))
+	  ;; update current-response
+	  (current-response
+	   (update-response (current-response)
+			    headers:
+			    (intarweb:headers `((content-type text/event-stream)
+						(cache-control no-cache)
+						(connection keep-alive)
+						(x-sse-handler #t)))))
+	  (write-logged-response)
+	  (handler req params))))
 
  ;; Send data to an SSE client
  ;;
@@ -401,19 +409,17 @@
    (let ((msg (conc (if id (conc "id: " id "\n") "")
 		    (if event (conc "event: " event "\n") "")
 		    "data: " data "\n\n")))
+     ;; this code will throw an i/o exception if the client
+     ;; disconnects
      (display msg (response-port (current-response)))
      (finish-response-body (current-response))))
 
  (define (halt status #!optional body headers)
-   (signal (condition `(s-halt status ,status body ,body headers ,headers))))
+   (signal (condition `(halt-condition status ,status body ,body headers ,headers))))
 
  (define (redirect location #!optional (status 'found))
    (let ((location (if (string? location) (uri-reference location) location)))
      (halt status "" `((location . (,location))))))
-
- (define (alist? x)
-   (and (list? x)
-        (every pair? x)))
 
  (define (is-response? list)
    (and
@@ -426,15 +432,17 @@
     ;; next item should be a valid body-type
     (string? (cadr list))
     ;; should check for headers next
-    (if (= 3 (length list)) (alist? (list-ref list 2)) #t)))
+    (if (= 3 (length list)) (list? (list-ref list 2)) #t)))
 
- (define (parse-response resp)
+ (define (send-response-tuple resp)
    (cond
     [(string? resp) (send-response status: 'ok body: resp)]
     [(is-response? resp)
-     (send-response
-      status: (car resp)
-      body: (list-ref resp 1))]
+     (let ((new-headers (if (= 3 (length resp)) (list-ref resp 2) '())))
+       (send-response
+	status: (car resp)
+	body: (list-ref resp 1)
+	headers: new-headers))]
     [else
      (send-response
       status: 'error
@@ -546,7 +554,8 @@
  (define (cookie-delete! key #!key (path (uri-reference "/")))
    (cookie-set! key "" max-age: 0 path: path))
 
- (define (cookies->headers cookies)
+ ;; returns an association list that con be used to build headers
+ (define (cookies->alist cookies)
    (hash-table-map cookies
 		   (lambda (key val-vector)
 		     (let ((val (vector-ref val-vector 0)))
@@ -559,13 +568,23 @@
  (define (use-middleware! middleware)
    (set! middleware-stack (append middleware-stack (list middleware))))
 
- (define (apply-middleware-stack request params thunk)
+ (define (apply-middleware-stack request params handler)
    (let loop ((middlewares middleware-stack))
      (if (null? middlewares)
-	 (thunk request params)
+	 (handler request params)
 	 (let ((middleware (car middlewares))
 	       (remaining  (cdr middlewares)))
 	   (middleware request params (lambda () (loop remaining)))))))
+
+ (handle-exception
+  (lambda (exn chain)
+    (let ((is-sse (and (current-response)
+		       (header-value 'x-sse-handler (response-headers (current-response)))))
+	  (thread-id (thread-name (current-thread))))
+      (if is-sse
+	  (log-err "[ERROR] SSE connection closed")
+	  ;; only send status for other reqs
+	  (send-status 'internal-server-error (build-error-message exn chain))))))
 
  ;; router
  (define (schematra-router continue)
@@ -587,21 +606,28 @@
 	   (let* ((handler (car resource))
 		  (route-params (cadr resource))
 		  (params (append route-params (uri-query uri))))
+	     ;; this condition-case is here to handle halts that might happen mid-routing
 	     (condition-case
-	      (let ((response (apply-middleware-stack request params handler)))
-		(with-headers (cookies->headers (response-cookies))
-			      (lambda ()
-				(parse-response response))))
-	      [exn (s-halt)
-		   (let ((status (get-condition-property exn 's-halt 'status))
-			 (body   (get-condition-property exn 's-halt 'body))
-			 (headers (get-condition-property exn 's-halt 'headers)))
-		     (with-headers (cookies->headers (response-cookies))
-				   (lambda ()
-				     (send-response
-				      status: status
-				      body: body
-				      headers: (or headers '())))))])))
+	      (let* ((response-tuple (apply-middleware-stack request params handler))
+		     (old-headers (response-headers (current-response)))
+		     (new-headers (intarweb:headers (cookies->alist (response-cookies))
+						    old-headers)))
+		(current-response (update-response (current-response)
+						   headers: new-headers))
+                (send-response-tuple response-tuple))
+              [exn (halt-condition)
+                   (let* ((status       (get-condition-property exn 'halt-condition 'status))
+                          (body         (get-condition-property exn 'halt-condition 'body))
+                          (halt-headers (get-condition-property exn 'halt-condition 'headers))
+			  (old-headers  (response-headers (current-response)))
+                          (new-headers  (intarweb:headers (append (or halt-headers '()) (cookies->alist (response-cookies)))
+							  old-headers)))
+                     (current-response (update-response (current-response)
+                                                        headers: new-headers))
+                     (send-response
+                      status: status
+                      body: body))])))
+	 ;; resource not found, let if spiffy handle it
          (continue))))
 
  ;; Install the Schematra router as a virtual host handler
@@ -619,6 +645,47 @@
    (let ((vhost (schematra-default-vhost)))
      (vhost-map
       `((,vhost . ,(lambda (continue) (schematra-router continue)))))))
+
+
+ (define schematra-logo
+   "                                                .:::.
+                                            .-+##%%%%=
+                                          -*%%#*****#%=
+                                      .:=#%#*********#%=
+                                   :+#%%#*************#%-
+                            .     +%#*************###%%%%:             .
+                          :+-    .%#*********##%%%%%%%%%@#-==++++=.    -+:
+                        .=*:     .%#*****#%%%%%%%%%%%%#####**##%@%.     :*=.
+                       .+*.       ##**#%%%%%%%%##*********##%%@%*.       .*+.
+                      .+*:        *%#%%%%%##******######%%%%@%+:          :*+.
+                     .+*-         -@%%#*****####**+=-:. :*@*-.             -*+
+                     =*+        :+##***###*+=-..          *#                +*=
+                    :**:      -*##*##%%+:.       :##=     .%=               -**.
+                    =*+.     +@###%%%%+          *@%%.     ##--:.           .**=
+                   .+*=      =%%%%%%%#           =%%+   :+########+:         +*+
+                   :**-       .:---+%-            .:  :*%*+++++++*#%+.       =**.
+                   :**-            **                =%%#******####%%+       -**:
+                   :**-           -%:                *%*#%%%%++=-::...       -**:
+                   :**-           *#                 =%#+*#%%=:.             -**:
+                   .**=          :%-                .###%#***%@%.            =**.
+                    +*+          *#                 +%++*%%%%*=:             +*+
+                    -**:        =%:                .%*+++#%+##.             :**-
+                    .+*=      .+%-                 :%*+++*%*+%+             =*+.
+                     -**:    +%*:                  .%#+++#%*+%*            :**:
+                      =*+.   =%#===+*+              :#%##%%%#*:           .+*-
+                       =*+    .-=++=%*               .-==:*%-             +*=
+                        -*+.        ##    ..               *#.          .+*-
+                         :++:       :%+  .#%:              .%+         :++.
+                           :=.       -%#-##*%=.     +=.     =%:       .=:
+                                      .=#%: -#%*-:. +@%*+=--=@*
+                                         .    :=*####%=-=+**++-")
+
+ (define (schematra-banner)
+   (let ((port (server-port))
+	 (address (or (server-bind-address) "(all)")))
+     (conc schematra-logo "\n"
+	   "Schematra version: " version-major "." version-minor "." version-patch "\n"
+	   "Listening on " address ":" port "\n")))
 
  ;; Start the Schematra web server
  ;;
@@ -651,9 +718,19 @@
  ;;
  ;;   ;; Development mode with custom ports
  ;;   (schematra-start development?: #t port: 8080 repl-port: 1234)
- (define (schematra-start #!key (development? #f) (port 8080) (repl-port 1234))
+ (define (schematra-start #!key (development? #f) (port 8080) (repl-port 1234) (bind-address #f))
    (access-log ##sys#standard-output)
    (error-log ##sys#standard-error)
+
+   ;; NOTE: figure out if we want to keep these params as arguments to
+   ;; the start function or let the user set them as they want.
+   (server-software `(("Schematra"
+		       ,(conc version-major "." version-minor)
+		       ,(conc "Running on CHICKEN " (chicken-version)))))
+   (server-port port)
+   (server-bind-address bind-address)
+   (display (schematra-banner))
+
    (if development?
        (begin
          (import nrepl)
@@ -661,6 +738,6 @@
          ;; start the server inside a thread, then start the nrepl in port `repl-port`
          (thread-start!
           (lambda ()
-            (start-server port: port)))
+            (start-server)))
          (nrepl repl-port))
-       (start-server port: port))))
+       (start-server))))

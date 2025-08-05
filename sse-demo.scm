@@ -1,25 +1,24 @@
 (import
  schematra
  chiccup
- srfi-18        ;; thread-sleep!
+ srfi-18        ;; threads
  chicken.string ;; conc
  intarweb       ;; read-urlencoded-request-data
+ spiffy         ;; current-response?
+ format
  )
 
-(define messages-mutex (make-mutex))
-(define messages-list '())
+(define broadcast-mutex (make-mutex))
+(define broadcast-condition (make-condition-variable))
+(define last-message #f)
+(define message-id 0)
 
-(define (add-message! msg)
-  (mutex-lock! messages-mutex)
-  (set! messages-list (cons msg messages-list))
-  (mutex-unlock! messages-mutex))
-
-(define (get-messages)
-  (mutex-lock! messages-mutex)
-  ;; prob we should copy this list
-  (let ((msgs (append messages-list '())))
-    (mutex-unlock! messages-mutex)
-    msgs))
+(define (broadcast-message! msg)
+  (mutex-lock! broadcast-mutex)
+  (set! last-message msg)
+  (set! message-id (+ message-id 1))
+  (condition-variable-broadcast! broadcast-condition)
+  (mutex-unlock! broadcast-mutex))
 
 (define (send-form)
   `[form.flex.gap-2
@@ -63,23 +62,36 @@
       (lambda (req params)
 	(let* ((body-params (read-urlencoded-request-data req))
 	       (msg (alist-ref 'message body-params)))
-	  (when msg (add-message! msg))
+	  (when msg (broadcast-message! msg))
 	  "")))
+
+(define (render-msg msg)
+  (ccup/html
+   `[.p-2.my-2.bg-white.rounded.border-l-4.border-blue-500.shadow-sm
+     [span.text-gray-800 ,msg]]))
 
 (sse "/chatroom"
      (lambda (req params)
-       (let ((last-count 0))
+       (let ((last-seen-id 0))
 	 (let loop ()
-	   (let ((current-messages (get-messages)))
-	     (when (> (length current-messages) last-count)
-	       (let ((new-msg (car current-messages)))
-		 (write-sse-data (ccup/html
-				  `[.p-2.my-2.bg-white.rounded.border-l-4.border-blue-500.shadow-sm
-		                    [span.text-gray-800 ,new-msg]])
-				 event: "message")
-		 (set! last-count (length current-messages))))
-	     (thread-sleep! 1)
-	     (loop))))))
+	   (mutex-lock! broadcast-mutex)
+
+	   ;; confirm that we should send a message
+	   (let wait-for-message ()
+	     (when (<= message-id last-seen-id)
+	       (mutex-unlock! broadcast-mutex broadcast-condition)
+	       (mutex-lock! broadcast-mutex)
+	       (wait-for-message)))
+
+	   ;; send the message
+	   (let ((msg-to-send (render-msg last-message))
+		 (current-msg-id message-id))
+	     (mutex-unlock! broadcast-mutex)
+	     (when (write-sse-data msg-to-send event: "message")
+	       (set! last-seen-id current-msg-id)
+	       (loop)))))
+       ;; in theory we should never reach this point
+       "done"))
 
 (schematra-install)
 (schematra-start development?: #t)
