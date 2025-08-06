@@ -175,20 +175,18 @@
       (let* ((provider-name (alist-ref 'name provider))
 	     (callback-path (string-append (auth-base-url) "/auth/" provider-name "/callback"))
 	     (start-oauth-path (string-append "/auth/" provider-name)))
-	(get callback-path (oauthtoothy-callback-handler provider success-redirect))
-	(get start-oauth-path
-	     (lambda (req params)
-	       ;; uri-common defaults to using ";" as the separator for query params
-	       (parameterize ((form-urlencoded-separator "&"))
-		 (let ((redirect-url (update-uri (uri-reference (alist-ref 'auth-url provider))
-						 query: `((client_id . ,(alist-ref 'client-id provider))
-							  (redirect_uri . ,callback-path)
-							  (scope . ,(alist-ref 'scopes provider))
-							  (response_type . "code")))))
-		   (redirect (uri->string redirect-url))))))))
+	(get (callback-path params) (oauthtoothy-callback-handler provider success-redirect params))
+	(get (start-oauth-path params)
+	     (parameterize ((form-urlencoded-separator "&"))
+	       (let ((redirect-url (update-uri (uri-reference (alist-ref 'auth-url provider))
+					       query: `((client_id . ,(alist-ref 'client-id provider))
+							(redirect_uri . ,callback-path)
+							(scope . ,(alist-ref 'scopes provider))
+							(response_type . "code")))))
+		 (redirect (uri->string redirect-url)))))))
     providers)
 
-   (lambda (req params next)
+   (lambda (params next)
      ;; should check what state of the auth cycle we're in, then
      ;; either pass or do something else
      (let* ((user-id (session-get "user-id"))
@@ -202,16 +200,15 @@
 					`((authenticated? . #f)))))
 	 (next)))))
 
- (define (oauthtoothy-callback-handler provider success-redirect)
-   (lambda (req params)
-     (let* ((code            (alist-ref 'code params))
-	    (token           (exchange-code-for-token code provider))
-	    (user-info       (get-user-info token provider))
-	    (normalized-user ((alist-ref 'user-info-parser provider) user-info))
-	    (user-id         (alist-ref 'id normalized-user)))
-       (when (user-save-proc)
-	 ((user-save-proc) user-id normalized-user))
+ (define (oauthtoothy-callback-handler provider success-redirect params)
+   (let* ((code            (alist-ref 'code params))
+	  (token           (exchange-code-for-token code provider))
+	  (user-info       (get-user-info token provider))
+	  (normalized-user ((alist-ref 'user-info-parser provider) user-info))
+	  (user-id         (alist-ref 'id normalized-user)))
+     (when (user-save-proc)
+       ((user-save-proc) user-id normalized-user))
 
-       ;; store in session, only user-id
-       (session-set! "user-id" (alist-ref 'id user-info))
-       (redirect success-redirect)))))
+     ;; store in session, only user-id
+     (session-set! "user-id" (alist-ref 'id user-info))
+     (redirect success-redirect))))

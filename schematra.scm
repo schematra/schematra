@@ -21,8 +21,10 @@
   schematra-default-handler
   schematra-default-vhost
   ;; Procedures
-  get post
+  get post put
   sse write-sse-data
+  current-body
+  add-resource! ;; used by the verb-routing macros
   halt redirect
   log-err log-dbg
   cookie-set! cookie-delete! cookie-ref
@@ -79,7 +81,7 @@
  ;; 
  ;; Returns:
  ;;   A string containing the default welcome message
- (define (schematra-default-handler _request #!optional params)
+ (define (schematra-default-handler params)
    "Welcome to Schematra, Sinatra's weird friend.")
 
  ;; Log an error message to the error log
@@ -121,12 +123,12 @@
  (define (make-path-tree)
    `("/" ,schematra-default-handler))
 
+ ;; resources tree based on the verb
+ (define resources-tree-for-verb (make-hash-table))
+
  ;; find a resource based on a path on a tree. Returns the handler if
  ;; found, #f otherwise.
- (define (find-resource path tree)
-   (find-resource-with-params path tree '()))
-
- (define (find-resource-with-params path tree params)
+ (define (find-resource path tree #!optional (params '()))
    (cond
     ;; If tree is not a list or is empty, no match
     [(not (and (list? tree) (>= (length tree) 2)))
@@ -149,15 +151,16 @@
              (cond
               [(null? subtrees) #f]
               [(list? (car subtrees))
-               (let ((result (find-resource-with-params (cdr path) (car subtrees) new-params)))
+               (let ((result (find-resource (cdr path) (car subtrees) new-params)))
                  (if result result (loop (cdr subtrees))))]
               [else (loop (cdr subtrees))]))))]
     ;; No match with current tree node
     [else #f]))
 
+ ;; internal function that updates a tree. Returns a new tree
  (define (add-resource path tree handler)
    (if (null? path)
-       tree                    ; Empty path, return tree as-is
+       tree                            ; Empty path, return tree as-is
        (let ((target-segment (car path))
              (remaining-path (cdr path)))
          (cond
@@ -186,6 +189,12 @@
                (list target-segment handler)
                (list target-segment #f (add-resource remaining-path (list (car remaining-path) #f) handler)))]))))
 
+ ;; external version that can be leveraged by macros
+ (define (add-resource! path http-verb handler)
+   (let* ((tree     (hash-table-ref/default resources-tree-for-verb http-verb (make-path-tree)))
+          (new-tree (add-resource (normalize-path (uri-path (uri-reference path))) tree handler)))
+     (hash-table-set! resources-tree-for-verb http-verb new-tree)))
+
  (define development-mode? #f)
 
  (define (normalize-path path-list)
@@ -203,15 +212,17 @@
                                    string-path)))
      normalized-path))
 
+ (import-for-syntax srfi-13)
  (define-syntax define-verb
    (er-macro-transformer
     (lambda (exp rename compare)
-      (let* ((verb         (cadr exp))
-	     (routes-name  (string->symbol (string-append (symbol->string verb) "-routes"))))
-	`(define (,verb path handler)
-	   (let ((raw-uri-path (uri-path (uri-reference path))))
-	     (set! ,routes-name
-		   (add-resource (normalize-path raw-uri-path) ,routes-name handler))))))))
+      (let* ((verb-name (cadr exp))
+             (verb-symbol (string->symbol (string-upcase (symbol->string verb-name)))))
+        `(define-syntax ,verb-name
+           (syntax-rules ()
+             ((_ (path params) body ...)
+              (let ((handler (lambda (params) body ...)))
+                (add-resource! path ',verb-symbol handler)))))))))
 
  ;; Register a GET route handler
  ;;
@@ -220,11 +231,13 @@
  ;;
  ;; Parameters:
  ;;   path: string - URL path pattern (e.g., "/users", "/api/posts/:id", "/users/:user-id/posts/:post-id")
- ;;   body: procedure - Handler function that processes the request
+ ;;   req: symbol - Request parameter name (typically 'req')
+ ;;   params: symbol - Parameters parameter name (typically 'params')
+ ;;   body: expressions - Route handler body that processes the request
  ;;
- ;; Handler Function Signature:
- ;;   The handler function must accept two arguments:
- ;;     request: HTTP request object containing headers, method, URI, etc.
+ ;; Handler Parameters:
+ ;;   The route handler receives two parameters:
+ ;;     req: HTTP request object containing headers, method, URI, etc.
  ;;     params: association list containing both path parameters and query parameters
  ;;
  ;; Parameters:
@@ -242,27 +255,24 @@
  ;;   This allows you to distinguish between the two types when processing params.
  ;;
  ;; Handler Return Value:
- ;;   The handler should return a string (which becomes the response body with 200 OK status)
+ ;;   The route handler should return a string (which becomes the response body with 200 OK status)
  ;;   or a response list in the format (status body [headers]).
  ;;
  ;; Example usage:
  ;;   ;; Simple static route
- ;;   (get "/hello" (lambda (req params) "Hello, World!"))
+ ;;   (get ("/hello" req params) "Hello, World!")
  ;;
  ;;   ;; Route with parameters
- ;;   (get "/users/:id" 
- ;;        (lambda (req params)
- ;;          (let ((user-id (alist-ref "id" params equal?)))
- ;;            (format "User ID: ~A" user-id))))
+ ;;   (get ("/users/:id" req params)
+ ;;        (let ((user-id (alist-ref "id" params equal?)))
+ ;;          (format "User ID: ~A" user-id)))
  ;;
  ;;   ;; Route with multiple parameters
- ;;   (get "/users/:user-id/posts/:post-id"
- ;;        (lambda (req params)
- ;;          (let ((user-id (alist-ref "user-id" params equal?))
- ;;                (post-id (alist-ref "post-id" params equal?)))
- ;;            (format "User ~A, Post ~A" user-id post-id))))
+ ;;   (get ("/users/:user-id/posts/:post-id" req params)
+ ;;        (let ((user-id (alist-ref "user-id" params equal?))
+ ;;              (post-id (alist-ref "post-id" params equal?)))
+ ;;          (format "User ~A, Post ~A" user-id post-id)))
  (define-verb get)
- (define get-routes (make-path-tree))
 
  ;; Register a POST route handler
  ;;
@@ -271,16 +281,16 @@
  ;;
  ;; Parameters:
  ;;   path: string - URL path pattern (e.g., "/users", "/api/posts", "/users/:id")
- ;;   body: procedure - Handler function that processes the request
+ ;;   req: symbol - Request parameter name (typically 'req')
+ ;;   params: symbol - Parameters parameter name (typically 'params')
+ ;;   body: expressions - Route handler body that processes the request
  ;;
- ;; Handler Function:
- ;;   See the 'get' function documentation for complete details on handler function
- ;;   signature, path parameters, query parameters, and return values. POST handlers
- ;;   work identically to GET handlers in terms of parameter handling and responses.
+ ;; Handler Parameters:
+ ;;   See the 'get' function documentation for complete details on handler parameters,
+ ;;   path parameters, query parameters, and return values. POST handlers work
+ ;;   identically to GET handlers in terms of parameter handling and responses.
  (define-verb post)
- (define post-routes (make-path-tree))
  (define-verb put)
- (define put-routes (make-path-tree))
 
  ;; Register a Server-Sent Events (SSE) endpoint
  ;;
@@ -290,11 +300,13 @@
  ;;
  ;; Parameters:
  ;;   path: string - URL path for the SSE endpoint (e.g., "/events", "/chat/:room")
- ;;   handler: procedure - Function that handles the SSE connection
+ ;;   req: symbol - Request parameter name (typically 'req')
+ ;;   params: symbol - Parameters parameter name (typically 'params')
+ ;;   body: expressions - SSE handler body that manages the connection
  ;;
- ;; Handler Function:
- ;;   The handler function receives the same arguments as regular route handlers:
- ;;     request: HTTP request object
+ ;; Handler Parameters:
+ ;;   The SSE handler receives the same parameters as regular route handlers:
+ ;;     req: HTTP request object
  ;;     params: association list of path and query parameters
  ;;
  ;;   Unlike regular handlers, SSE handlers typically run in a loop to continuously
@@ -320,36 +332,32 @@
  ;;
  ;; Example usage:
  ;;   ;; Simple time server
- ;;   (sse "/time"
- ;;        (lambda (req params)
- ;;          (let loop ()
- ;;            (write-sse-data (current-time-string) event: "time-update")
- ;;            (thread-sleep! 1)
- ;;            (loop))))
+ ;;   (sse ("/time" req params)
+ ;;        (let loop ()
+ ;;          (write-sse-data (current-time-string) event: "time-update")
+ ;;          (thread-sleep! 1)
+ ;;          (loop)))
  ;;
  ;;   ;; Chat room with parameters
- ;;   (sse "/chat/:room"
- ;;        (lambda (req params)
- ;;          (let ((room (alist-ref "room" params equal?)))
- ;;            (let loop ()
- ;;              (let ((messages (get-room-messages room)))
- ;;                (when (new-messages? messages)
- ;;                  (write-sse-data (format-message messages) event: "message"))
- ;;                (thread-sleep! 1)
- ;;                (loop))))))
+ ;;   (sse ("/chat/:room" req params)
+ ;;        (let ((room (alist-ref "room" params equal?)))
+ ;;          (let loop ()
+ ;;            (let ((messages (get-room-messages room)))
+ ;;              (when (new-messages? messages)
+ ;;                (write-sse-data (format-message messages) event: "message"))
+ ;;              (thread-sleep! 1)
+ ;;              (loop)))))
  (define (sse path handler)
-   (get path
-	(lambda (req params)
-	  ;; update current-response
-	  (current-response
-	   (update-response (current-response)
-			    headers:
-			    (intarweb:headers `((content-type text/event-stream)
-						(cache-control no-cache)
-						(connection keep-alive)
-						(x-sse-handler #t)))))
-	  (write-logged-response)
-	  (handler req params))))
+   (get (path params)
+        (current-response
+         (update-response (current-response)
+                          headers:
+                          (intarweb:headers `((content-type text/event-stream)
+                                              (cache-control no-cache)
+                                              (connection keep-alive)
+                                              (x-sse-handler #t)))))
+        (write-logged-response)
+	(handler params)))
 
  ;; Send data to an SSE client
  ;;
@@ -457,12 +465,11 @@
  ;;         '((content-type . "application/json")))
  ;;
  ;;   ;; Authentication check with early return
- ;;   (get "/admin" 
- ;;        (lambda (req params)
- ;;          (unless (authenticated? req)
- ;;            (halt 'unauthorized "Access denied"))
- ;;          ;; Continue with admin logic...
- ;;          "Admin dashboard"))
+ ;;   (get ("/admin" req params)
+ ;;        (unless (authenticated? req)
+ ;;          (halt 'unauthorized "Access denied"))
+ ;;        ;; Continue with admin logic...
+ ;;        "Admin dashboard")
  ;;
  ;;   ;; Custom status with no body
  ;;   (halt 'no-content)
@@ -508,20 +515,18 @@
  ;;   (redirect "/new-location" 'moved-permanently)
  ;;
  ;;   ;; Redirect after successful form submission
- ;;   (post "/submit"
- ;;         (lambda (req params)
- ;;           (process-form-data params)
- ;;           (redirect "/success" 'see-other)))
+ ;;   (post ("/submit" req params)
+ ;;         (process-form-data params)
+ ;;         (redirect "/success" 'see-other))
  ;;
  ;;   ;; External redirect
  ;;   (redirect "https://external-site.com/page")
  ;;
  ;;   ;; Conditional redirect based on authentication
- ;;   (get "/dashboard"
- ;;        (lambda (req params)
- ;;          (if (authenticated? req)
- ;;              "Welcome to your dashboard"
- ;;              (redirect "/login"))))
+ ;;   (get ("/dashboard" req params)
+ ;;        (if (authenticated? req)
+ ;;            "Welcome to your dashboard"
+ ;;            (redirect "/login")))
  (define (redirect location #!optional (status 'found))
    (let ((location (if (string? location) (uri-reference location) location)))
      (halt status "" `((location . (,location))))))
@@ -539,19 +544,26 @@
     ;; should check for headers next
     (if (= 3 (length list)) (list? (list-ref list 2)) #t)))
 
- (define (send-response-tuple resp)
+ ;; updates the response with the schematra tuple (mimicking a Rack
+ ;; response). If there's a body in the tuple, it will set
+ ;; (current-body) to that.
+ (define (update-response-with-tuple! response tuple)
    (cond
-    [(string? resp) (send-response status: 'ok body: resp)]
-    [(is-response? resp)
-     (let ((new-headers (if (= 3 (length resp)) (list-ref resp 2) '())))
-       (send-response
-	status: (car resp)
-	body: (list-ref resp 1)
-	headers: new-headers))]
+    [(string? tuple)
+     (current-body tuple)
+     (update-response response status: 'ok)]
+    [(is-response? tuple)
+     (current-body (cadr tuple))
+     (let ((new-headers (if (= 3 (length tuple)) (caddr tuple) '())))
+       (update-response
+	response
+	status: (car tuple)
+        headers: (intarweb:headers new-headers (response-headers response))))]
     [else
-     (send-response
-      status: 'error
-      body: (format #f "Error: response type not supported (~A)" resp))]))
+     (current-body (format #f "Error: response type not supported (~A)" tuple))
+     (update-response
+      response
+      status: 'error)]))
 
  ;; Extract the request body as a string
  ;;
@@ -572,10 +584,9 @@
  ;;   - Returns empty string if no body content is available
  ;;
  ;; Example usage:
- ;;   (post "/submit" 
- ;;         (lambda (req params)
- ;;           (let ((body (request-body-string req)))
- ;;             (format "Received: ~A" body))))
+ ;;   (post ("/submit" req params)
+ ;;         (let ((body (request-body-string req)))
+ ;;           (format "Received: ~A" body)))
  (define (request-body-string request)
    (let* ((in-port (request-port request))
           (headers (request-headers request))
@@ -636,18 +647,18 @@
  ;;                http-only: #t 
  ;;                max-age: "3600")
  (define (cookie-set! key val #!key
-		      (path (uri-reference "/"))
-		      (max-age #f)
-		      (secure #f)
-		      (http-only #f)
-		      (domain #f))
+                      (path (uri-reference "/"))
+                      (max-age #f)
+                      (secure #f)
+                      (http-only #f)
+                      (domain #f))
    (hash-table-set! (response-cookies) key
-		    `#(,val
-		       ((path . ,path)
-			,@(if max-age `((max-age . ,max-age)) '())
-			,@(if secure `((secure . #t)) '())
-			,@(if http-only `((http-only . #t)) '())
-			,@(if domain `((domain . #t)) '())))))
+                    `#(,val
+                       ((path . ,path)
+                        ,@(if max-age `((max-age . ,max-age)) '())
+                        ,@(if secure `((secure . #t)) '())
+                        ,@(if http-only `((http-only . #t)) '())
+                        ,@(if domain `((domain . #t)) '())))))
 
  (define (cookie-ref key #!optional default)
    (if (hash-table? (request-cookies))
@@ -662,10 +673,10 @@
  ;; returns an association list that con be used to build headers
  (define (cookies->alist cookies)
    (hash-table-map cookies
-		   (lambda (key val-vector)
-		     (let ((val (vector-ref val-vector 0)))
-		       `(set-cookie #((,key . ,val) ,(vector-ref val-vector 1))))
-		     )))
+                   (lambda (key val-vector)
+                     (let ((val (vector-ref val-vector 0)))
+                       `(set-cookie #((,key . ,val) ,(vector-ref val-vector 1))))
+                     )))
 
  ;; middleware
  (define middleware-stack '())
@@ -673,23 +684,25 @@
  (define (use-middleware! middleware)
    (set! middleware-stack (append middleware-stack (list middleware))))
 
- (define (apply-middleware-stack request params handler)
+ (define (apply-middleware-stack params handler)
    (let loop ((middlewares middleware-stack))
      (if (null? middlewares)
-	 (handler request params)
-	 (let ((middleware (car middlewares))
-	       (remaining  (cdr middlewares)))
-	   (middleware request params (lambda () (loop remaining)))))))
+         (handler params)
+         (let ((middleware (car middlewares))
+               (remaining  (cdr middlewares)))
+           (middleware params (lambda () (loop remaining)))))))
 
  (handle-exception
   (lambda (exn chain)
     (let ((is-sse (and (current-response)
-		       (header-value 'x-sse-handler (response-headers (current-response)))))
-	  (thread-id (thread-name (current-thread))))
+                       (header-value 'x-sse-handler (response-headers (current-response)))))
+          (thread-id (thread-name (current-thread))))
       (if is-sse
-	  (log-err "[ERROR] SSE connection closed")
-	  ;; only send status for other reqs
-	  (send-status 'internal-server-error (build-error-message exn chain))))))
+          (log-err "[ERROR] SSE connection closed: ~A" exn)
+          ;; only send status for other reqs
+          (send-status 'internal-server-error (build-error-message exn chain))))))
+
+ (define current-body (make-parameter #f))
 
  ;; router
  (define (schematra-router continue)
@@ -699,39 +712,33 @@
           (method (request-method request))
           (uri (request-uri request))
           (normalized-path (normalize-path (uri-path uri)))
-          (route-handlers
-           (cond
-            [(eq? method 'GET) get-routes]
-            [(eq? method 'POST) post-routes]
-            [else (error "no handlers for this method")]))
-          (resource (find-resource normalized-path route-handlers)))
+          (route-handlers (hash-table-ref/default resources-tree-for-verb method #f))
+          (resource (and route-handlers (find-resource normalized-path route-handlers))))
      (if resource
          (parameterize ((request-cookies (alist->hash-table raw-cookies))
-			(response-cookies (make-hash-table)))
-	   (let* ((handler (car resource))
-		  (route-params (cadr resource))
-		  (params (append route-params (uri-query uri))))
-	     ;; this condition-case is here to handle halts that might happen mid-routing
-	     (condition-case
-	      (let* ((response-tuple (apply-middleware-stack request params handler))
-		     (old-headers (response-headers (current-response)))
-		     (new-headers (intarweb:headers (cookies->alist (response-cookies))
-						    old-headers)))
-		(current-response (update-response (current-response)
-						   headers: new-headers))
-                (send-response-tuple response-tuple))
+                        (response-cookies (make-hash-table))
+			(current-body #f))
+           (let* ((handler (car resource))
+                  (route-params (cadr resource))
+                  (params (append route-params (uri-query uri))))
+             ;; this condition-case is here to handle halts that might happen mid-routing
+             (condition-case
+              (let* ((response-tuple (apply-middleware-stack params handler))
+                     (old-headers (response-headers (current-response)))
+                     (new-headers (intarweb:headers (cookies->alist (response-cookies))
+                                                    old-headers)))
+                (current-response (update-response (current-response)
+                                                   headers: new-headers))
+                (current-response (update-response-with-tuple! (current-response) response-tuple))
+		;; need to include the body here
+                (send-response body: (current-body)))
               [exn (halt-condition)
                    (let* ((status       (get-condition-property exn 'halt-condition 'status))
                           (body         (get-condition-property exn 'halt-condition 'body))
                           (halt-headers (get-condition-property exn 'halt-condition 'headers))
-			  (old-headers  (response-headers (current-response)))
-                          (new-headers  (intarweb:headers (append (or halt-headers '()) (cookies->alist (response-cookies)))
-							  old-headers)))
-                     (current-response (update-response (current-response)
-                                                        headers: new-headers))
-                     (send-response
-                      status: status
-                      body: body))])))
+                          (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies)))))
+		     (current-response (update-response-with-tuple! (current-response) (list status body new-headers)))
+                     (send-response body: body))])))
 	 ;; resource not found, let if spiffy handle it
          (continue))))
 

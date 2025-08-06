@@ -172,28 +172,25 @@
     ,(footer)])
 
 ;; Routes
-(get "/2048"
-     (lambda (request params)
-       (parameterize ((game-grid (or (session-get "game-state" #f) (new-game))))
-	 (session-set! "game-state" (game-grid))
-	 (html-layout "2048 Game" (game-2048-content)))))
+(get ("/2048" params)
+     (parameterize ((game-grid (or (session-get "game-state" #f) (new-game))))
+       (session-set! "game-state" (game-grid))
+       (html-layout "2048 Game" (game-2048-content))))
 
-(post "/2048/new-game"
-      (lambda (request params)
-	(parameterize ((game-grid (new-game)))
+(post ("/2048/new-game" params)
+      (parameterize ((game-grid (new-game)))
+	(session-set! "game-state" (game-grid))
+        (ccup/html (render-grid))))
+
+(post ("/2048/move/:direction" params)
+      (parameterize ((game-grid (session-get "game-state")))
+        (let ((direction (string->symbol (alist-ref "direction" params equal?)))
+	      (old-grid (vector-copy (game-grid))))
+          (move-tiles direction)
+	  (when (not (equal? old-grid (game-grid)))
+            (add-random-tile!))
 	  (session-set! "game-state" (game-grid))
           (ccup/html (render-grid)))))
-
-(post "/2048/move/:direction"
-      (lambda (request params)
-	(parameterize ((game-grid (session-get "game-state")))
-          (let ((direction (string->symbol (alist-ref "direction" params equal?)))
-		(old-grid (vector-copy (game-grid))))
-            (move-tiles direction)
-	    (when (not (equal? old-grid (game-grid)))
-              (add-random-tile!))
-	    (session-set! "game-state" (game-grid))
-            (ccup/html (render-grid))))))
 
 (schematra-install)
 (schematra-start development?: #t)

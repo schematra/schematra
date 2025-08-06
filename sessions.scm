@@ -148,7 +148,7 @@
  ;;                (format "Welcome user ~A" user-id)
  ;;                "Please log in"))))
  (define (session-middleware secret-key)
-   (lambda (req params next)
+   (lambda (params next)
      (let* ((session-cookie (cookie-ref (session-key)))
 	    (session-data (if session-cookie
 			      (deserialize-session session-cookie secret-key)

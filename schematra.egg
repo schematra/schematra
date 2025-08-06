@@ -1,4 +1,4 @@
-;;; awful.egg -*- scheme -*-
+;;; schematra.egg -*- scheme -*-
 
 ((synopsis
   "Schematra is a minimalistic web server built on top of spiffy")

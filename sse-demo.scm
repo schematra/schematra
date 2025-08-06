@@ -37,33 +37,31 @@
 ;; You should be able to chat between the different tabs/windows.
 ;; By default spiffy allows up to 1024 simultaneous connections. You're using one on each SSE route.
 ;; To change the amount of max connections you can use the parameter `max-connections` (see: https://wiki.call-cc.org/eggref/5/spiffy#configuration-parameters)
-(get "/"
-     (lambda (req params)
-       (ccup/html
-	`[html
-	  [head
-	   [script ({"src" . "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"})]
-	   [script ({"src" . "https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.2"})]
-	   [script (("src" . "https://cdn.tailwindcss.com"))]]
-	  [body.bg-gray-100.min-h-screen
-	   ({"hx-ext" . "sse"})
-	   [.max-w-2xl.mx-auto.p-6
-	    [.bg-white.rounded-lg.shadow-lg.overflow-hidden
-	     [.bg-blue-600.text-white.p-4
-	      [h1.text-xl.font-bold "Live Chat"]]
-	     [.p-4
-	      [\#history.space-y-2.mb-4.h-64.overflow-y-auto.border.border-gray-200.rounded.p-3.bg-gray-50
-	       ({"sse-connect" . "/chatroom"}
-		{"sse-swap" . "message"}
-		{"hx-swap" . "beforeend"})]]
-	     ,(send-form)]]]])))
+(get ("/" req params)
+     (ccup/html
+      `[html
+        [head
+         [script ({"src" . "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"})]
+         [script ({"src" . "https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.2"})]
+         [script (("src" . "https://cdn.tailwindcss.com"))]]
+        [body.bg-gray-100.min-h-screen
+         ({"hx-ext" . "sse"})
+         [.max-w-2xl.mx-auto.p-6
+          [.bg-white.rounded-lg.shadow-lg.overflow-hidden
+           [.bg-blue-600.text-white.p-4
+            [h1.text-xl.font-bold "Live Chat"]]
+           [.p-4
+            [\#history.space-y-2.mb-4.h-64.overflow-y-auto.border.border-gray-200.rounded.p-3.bg-gray-50
+             ({"sse-connect" . "/chatroom"}
+              {"sse-swap" . "message"}
+              {"hx-swap" . "beforeend"})]]
+           ,(send-form)]]]]))
 
-(post "/send"
-      (lambda (req params)
-	(let* ((body-params (read-urlencoded-request-data req))
-	       (msg (alist-ref 'message body-params)))
-	  (when msg (broadcast-message! msg))
-	  "")))
+(post ("/send" req params)
+      (let* ((body-params (read-urlencoded-request-data req))
+             (msg (alist-ref 'message body-params)))
+        (when msg (broadcast-message! msg))
+        ""))
 
 (define (render-msg msg)
   (ccup/html
@@ -73,23 +71,23 @@
 (sse "/chatroom"
      (lambda (req params)
        (let ((last-seen-id 0))
-	 (let loop ()
-	   (mutex-lock! broadcast-mutex)
+         (let loop ()
+           (mutex-lock! broadcast-mutex)
 
-	   ;; confirm that we should send a message
-	   (let wait-for-message ()
-	     (when (<= message-id last-seen-id)
-	       (mutex-unlock! broadcast-mutex broadcast-condition)
-	       (mutex-lock! broadcast-mutex)
-	       (wait-for-message)))
+           ;; confirm that we should send a message
+           (let wait-for-message ()
+             (when (<= message-id last-seen-id)
+               (mutex-unlock! broadcast-mutex broadcast-condition)
+               (mutex-lock! broadcast-mutex)
+               (wait-for-message)))
 
-	   ;; send the message
-	   (let ((msg-to-send (render-msg last-message))
-		 (current-msg-id message-id))
-	     (mutex-unlock! broadcast-mutex)
-	     (when (write-sse-data msg-to-send event: "message")
-	       (set! last-seen-id current-msg-id)
-	       (loop)))))
+           ;; send the message
+           (let ((msg-to-send (render-msg last-message))
+                 (current-msg-id message-id))
+             (mutex-unlock! broadcast-mutex)
+             (when (write-sse-data msg-to-send event: "message")
+               (set! last-seen-id current-msg-id)
+               (loop)))))
        ;; in theory we should never reach this point
        "done"))
 

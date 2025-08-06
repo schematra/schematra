@@ -41,19 +41,17 @@
   save-proc: save-user
   load-proc: load-user))
 
-(get "/profile"
-     (lambda (request params)
-       (let ((auth (current-auth)))
-	 (if (alist-ref 'authenticated? auth)
-	     (begin
-	       (ccup/html `[h1 ,(string-append "welcome " (alist-ref 'name auth))]))
-	     ;; trigger the auth sequence
-	     (redirect "/auth/google")))))
+(get ("/profile" req params)
+     (let ((auth (current-auth)))
+       (if (alist-ref 'authenticated? auth)
+	   (begin
+	     (ccup/html `[h1 ,(string-append "welcome " (alist-ref 'name auth))]))
+	   ;; trigger the auth sequence
+	   (redirect "/auth/google"))))
 
-(get "/logout"
-     (lambda (request params)
-       (session-destroy!)
-       (redirect "/")))
+(get ("/logout" req params)
+     (session-destroy!)
+     (redirect "/"))
 
 (schematra-install)
 (schematra-start development?: #t)

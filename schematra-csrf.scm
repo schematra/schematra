@@ -1,9 +1,12 @@
 (module
  schematra-csrf
- (csrf-middleware
+
+ (
+  csrf-middleware
   csrf-token-key
   csrf-form-field
-  csrf-get-token)
+  csrf-get-token
+  ) ;; export list
 
  (import scheme)
  (import
@@ -12,6 +15,7 @@
   openssl.random
   base64
   intarweb
+  spiffy ;; current-request
   schematra
   sessions)
 
@@ -41,8 +45,9 @@
          csrf-header)))
 
  (define (csrf-middleware)
-   (lambda (request params next)
-     (let ((method (request-method request)))
+   (lambda (params next)
+     (let* ((request (current-request))
+	    (method (request-method request)))
        (cond
 	;; Safe methods don't need CSRF protection
 	[(memq method '(GET HEAD OPTIONS TRACE))

@@ -16,7 +16,7 @@ I created Schematra because I wanted to:
 
 ## Features
 
-- Simple route definition with `get` and `post` functions
+- Simple route definition with `get`, `post`, etc. functions
 - URL parameter extraction (e.g., `/users/:id`) & body parsing
 - Middleware support
 - Included naive session middleware (cookie storage)
@@ -41,20 +41,19 @@ That will download the dependencies and install the core modules so that they're
 Here's a simple "Hello World" application:
 
 ```scheme
-(import schematra)
+(import schematra chiccup)
 
 ;; Define routes
-(get "/" (lambda (req params) "Hello, World!"))
+(get ("/" params) "Hello, World!")
 
-(get "/users/:id" 
-     (lambda (req params)
-       (let ((user-id (alist-ref "id" params equal?)))
-         (format "User ID: ~A" user-id))))
+(get ("/users/:id" params)
+     (let ((user-id (alist-ref "id" params equal?)))
+	   ;; use chiccup to render html
+	   (ccup/html `[html [body ,(format "User id: ~A" user-id)]])))
 
-(post "/submit"
-      (lambda (req params)
-        (let ((body (request-body-string req)))
-          (format "Received: ~A" body))))
+(post ("/submit" params)
+      (let ((body (request-body-string req)))
+        (format "Received: ~A" body)))
 
 ;; Start the server
 (schematra-install)
@@ -86,53 +85,46 @@ For a more elegant environment, you can use emacs `run-scheme` by running `C-u M
 Schematra supports URL parameters using the `:parameter` syntax, as well as query params:
 
 ```scheme
-(define (lookup key alist)
-  (let ((pair (assoc key alist)))
-    (if pair
-        (cdr pair)
-        #f)))
-
-(get "/users/:user-id/posts/:post-id"
-     (lambda (req params)
-       (let ((user-id (lookup "user-id" params))
-             (post-id (lookup "post-id" params))
-			 (q       (lookup 'q params))) ;; query params use symbol keys
-         (format "User: ~A, Post: ~A" user-id post-id))))
+(get ("/users/:user-id/posts/:post-id" params)
+     (let ((user-id (alist-ref "user-id" params equal?))
+           (post-id (alist-ref "post-id" params equal?))
+           (q       (alist-ref 'q params))) ;; query params use symbol keys
+       (format "User: ~A, Post: ~A" user-id post-id)))
 ```
 
 The `params` argument contains both URL parameters (with string keys) and query parameters (with symbol keys).
 
 ## Route Handlers
 
-Route handlers are functions that process HTTP requests and generate responses. Understanding how they work and what they should return is crucial for building Schematra applications.
+Route handlers process HTTP requests and generate responses. Understanding how they work and what they should return is crucial for building Schematra applications.
 
-### Handler Function Signature
+### Handler Syntax
 
-Every route handler must accept exactly two arguments:
+Every route handler uses the syntax `(verb (path params) body ...)`:
 
 ```scheme
-(define (my-handler request params)
+(get ("/my-route" params)
   ;; Handler implementation
   )
 ```
 
-- **`request`**: The [intarweb](https://wiki.call-cc.org/eggref/5/intarweb#requests) request object containing headers, method, URI, and request port
+- **`path`**: The URL path pattern (e.g., "/users/:id")
 - **`params`**: An association list containing both URL path parameters and query parameters
 
 ### The Request Object
 
-The `request` parameter provides access to all aspects of the HTTP request:
+The `current-request` parameter is an [intarweb request](https://wiki.call-cc.org/eggref/5/intarweb#requests) that provides access to all aspects of the HTTP request:
 
 ```scheme
-(get "/debug"
-     (lambda (req params)
-       (let ((method (request-method req))          ; 'GET, 'POST, etc.
-             (uri (request-uri req))                ; Full URI object
-             (headers (request-headers req))        ; Request headers
-             (port (request-port req)))             ; Input port for body
-         (format "Method: ~A, Path: ~A" 
-                 method 
-                 (uri-path uri)))))
+(get ("/debug" params)
+     (let* ((req (current-request))
+	        (method (request-method req))          ; 'GET, 'POST, etc.
+            (uri (request-uri req))                ; Full URI object (uri-common egg)
+            (headers (request-headers req))        ; Request headers
+            (port (request-port req)))             ; Input port for body
+       (format "Method: ~A, Path: ~A" 
+               method 
+               (uri-path uri))))
 ```
 
 Common request operations:
@@ -140,6 +132,8 @@ Common request operations:
 - `(request-uri request)` - Get URI object with path, query, etc. (see [uri-common](https://wiki.call-cc.org/eggref/5/uri-common))
 - `(request-headers request)` - Get request headers
 - `(request-body-string request)` - Read request body as string (useful for POST data)
+
+For more, check [Intarweb](https://wiki.call-cc.org/eggref/5/intarweb).
 
 ### The Params Argument
 
@@ -153,12 +147,11 @@ The `params` argument is an association list containing two types of parameters:
 ;; URL: /users/123?format=json&limit=10
 ;; params = (("id" . "123") (format . "json") (limit . "10"))
 
-(get "/users/:id"
-     (lambda (req params)
-       (let ((user-id (alist-ref "id" params equal?))      ; Path param (string key)
-             (format (alist-ref 'format params))           ; Query param (symbol key)
-             (limit (alist-ref 'limit params)))            ; Query param (symbol key)
-         (format "User ~A, format: ~A, limit: ~A" user-id format limit))))
+(get ("/users/:id" params)
+     (let ((user-id (alist-ref "id" params equal?))      ; Path param (string key)
+           (format (alist-ref 'format params))           ; Query param (symbol key)
+           (limit (alist-ref 'limit params)))            ; Query param (symbol key)
+       (format "User ~A, format: ~A, limit: ~A" user-id format limit)))
 ```
 
 ### Handler Return Values
@@ -170,23 +163,20 @@ Route handlers can return different types of values, which Schematra automatical
 Return a string to send a 200 OK response with that string as the body:
 
 ```scheme
-(get "/hello"
-     (lambda (req params)
-       "Hello, World!"))  ; Returns 200 OK with "Hello, World!" body
+(get ("/hello" req params)
+     "Hello, World!")  ; Returns 200 OK with "Hello, World!" body
 ```
 
-#### 2. Response List
+#### 2. Response Tuple
 
 Return a list in the format `(status body [headers])` for full control over the response:
 
 ```scheme
-(get "/custom"
-     (lambda (req params)
-       '(created "Resource created successfully")))  ; Returns 201 Created
+(get ("/custom" req params)
+     '(created "Resource created successfully"))  ; Returns 201 Created
 
-(get "/with-headers"
-     (lambda (req params)
-       '(ok "Success" ((content-type . "text/plain")))))  ; With custom headers
+(get ("/with-headers" req params)
+     '(ok "Success" ((content-type . "text/plain"))))  ; With custom headers
 ```
 
 Some common valid status symbols include:
@@ -206,35 +196,32 @@ Schematra provides helper functions for common response patterns:
 
 ```scheme
 ;; Redirect to another URL
-(get "/old-page"
-     (lambda (req params)
-       (redirect "/new-page")))  ; 302 redirect
+(get ("/old-page" params)
+     (redirect "/new-page"))  ; 302 redirect
 
 ;; Halt with specific status and message
-(get "/admin"
-     (lambda (req params)
-       (if (not (authenticated? req))
-           (halt 'unauthorized "Access denied")
-           "Welcome to admin panel")))
+(get ("/admin" params)
+     (if (not (authenticated? req))
+         (halt 'unauthorized "Access denied")
+         "Welcome to admin panel"))
 ```
 
 Redirect and halt both generate a specific signal that's captured by the main router and short-circuit any other processing: no other middleware or part of the route handler will be executed.
 
 ### HTML Responses with Chiccup
 
-For HTML responses, use the included Chiccup template system:
+For HTML responses, use the included Chiccup rendering engine:
 
 ```scheme
 (import chiccup)
 
-(get "/page"
-     (lambda (req params)
-       (ccup/html
-        `[html
-          [head [title "My Page"]]
-          [body
-           [h1 "Welcome"]
-           [p "This is generated HTML"]]])))
+(get ("/page" params)
+     (ccup/html
+      `[html
+        [head [title "My Page"]]
+        [body
+         [h1 "Welcome"]
+         [p "This is generated HTML"]]]))
 ```
 
 ### Working with Request Bodies
@@ -242,15 +229,14 @@ For HTML responses, use the included Chiccup template system:
 For POST requests, you can easily access the request body using `request-body-string`:
 
 ```scheme
-(post "/submit"
-      (lambda (req params)
-        (let ((body (request-body-string req)))
-          (if (string=? body "")
-              '(bad-request "Empty request body")
-              (format "Received: ~A" body)))))
+(post ("/submit" params)
+      (let ((body (request-body-string (current-request))))
+        (if (string=? body "")
+            '(bad-request "Empty request body")
+            (format "Received: ~A" body))))
 ```
 
-Since you have access to the intarweb request object, you can also access the object and its port directly if you want.
+Since you have access to the intarweb request object, you can also access the object and its port directly if you want more control.
 
 ## Middleware
 
@@ -267,16 +253,16 @@ Install middleware using the `use-middleware!` function:
 Middleware functions have the following signature:
 
 ```scheme
-(define (my-middleware request params next)
+(define (my-middleware params next)
   ;; Process request/params before handler
+  (display params)
   (let ((response (next)))  ; Call next middleware or handler
-    ;; Process response after handler
+    ;; Process response-tuple after handler
     response))
 ```
 
 ### Middleware Parameters
 
-- `request`: The HTTP request object
 - `params`: The route and query parameters alist
 - `next`: A thunk (zero-argument function) that calls the next middleware in the chain or the final route handler
 
@@ -285,8 +271,9 @@ Middleware functions have the following signature:
 #### Simple Logging Middleware
 
 ```scheme
-(define (logging-middleware request params next)
-  (let* ((method (request-method request))
+(define (logging-middleware params next)
+  (let* ((request (current-request))
+         (method (request-method request))
          (uri (request-uri request))
          (path (uri-path uri)))
     (log-dbg "~A ~A" method (uri->string uri))
@@ -306,8 +293,8 @@ Middleware functions have the following signature:
        (string=? (symbol->string (caar (get-params (car header)))) "secret")))
 
 ;; detail of the headers content: https://wiki.call-cc.org/eggref/5/intarweb#headers
-(define (auth-middleware request params next)
-  (let ((auth-header (header-contents 'authorization (request-headers request))))
+(define (auth-middleware params next)
+  (let ((auth-header (header-contents 'authorization (request-headers (current-request)))))
     (if (and auth-header (valid-token? auth-header))
         ;; Continue to next middleware or route
         (next)
@@ -344,12 +331,11 @@ Schematra plays nicely with modern web development tools:
 Include Tailwind via CDN in your HTML responses:
 
 ```scheme
-(get "/tw-demo"
-     (lambda (req params)
-       (ccup/html
-	`[html
-	  [head [script (("src" . "https://cdn.tailwindcss.com"))]]
-	  [body.bg-gray-100.p-8 [h1.text-3xl.font-bold.text-blue-600 "Hello, Tailwind!"]]])))
+(get ("/tw-demo" params)
+     (ccup/html
+      `[html
+        [head [script (("src" . "https://cdn.tailwindcss.com"))]]
+        [body.bg-gray-100.p-8 [h1.text-3xl.font-bold.text-blue-600 "Hello, Tailwind!"]]]))
 ```
 
 ### htmx
@@ -357,18 +343,16 @@ Include Tailwind via CDN in your HTML responses:
 Add htmx for dynamic interactions:
 
 ```scheme
-(get "/htmx-demo"
-     (lambda (req params)
-       (ccup/html
-	`[html
-	  [head [script (("src" . "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]]
-	  [body
-	   [button (("hx-get" . "/clicked") ("hx-target" . "#result")) "Click me!"]
-	   [\#result]]])))
+(get ("/htmx-demo" params)
+     (ccup/html
+      `[html
+        [head [script (("src" . "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]]
+        [body
+         [button (("hx-get" . "/clicked") ("hx-target" . "#result")) "Click me!"]
+         [\#result]]]))
 
-(get "/clicked"
-     (lambda (req params)
-       (ccup/html `[p "Button was clicked!"])))
+(get ("/clicked" params)
+     (ccup/html `[p "Button was clicked!"]))
 ```
 
 ## Session Management
@@ -389,24 +373,21 @@ First, install the session middleware with a secret key:
 Then use session functions in your route handlers:
 
 ```scheme
-(get "/login"
-     (lambda (req params)
-       (session-set! "user-id" "12345")
-       (session-set! "username" "alice")
-       "Logged in successfully"))
+(get ("/login" params)
+     (session-set! "user-id" "12345")
+     (session-set! "username" "alice")
+     "Logged in successfully")
 
-(get "/profile"
-     (lambda (req params)
-       (let ((user-id (session-get "user-id")))
-         (if user-id
-             (format "Welcome user ~A" user-id)
-             "Please log in"))))
+(get ("/profile" params)
+     (let ((user-id (session-get "user-id")))
+       (if user-id
+           (format "Welcome user ~A" user-id)
+           "Please log in")))
 
-(get "/logout"
-     (lambda (req params)
-       (session-delete! "user-id")
-       (session-delete! "username")
-       "Logged out"))
+(get ("/logout" params)
+     (session-delete! "user-id")
+     (session-delete! "username")
+     "Logged out")
 ```
 
 ### Session Functions
