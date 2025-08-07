@@ -110,5 +110,8 @@
      (halt 'ok "you're halted\n" `((content-type text/foo)))
      '(ok "this should not be sent" ((x-foo-bar "some value"))))
 
+;; serve our own directory, just for fun & giggles
+(static "/static" ".")
+
 (schematra-install)
 (schematra-start development?: #t)

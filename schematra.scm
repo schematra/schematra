@@ -24,6 +24,7 @@
   get post put
   sse write-sse-data
   current-body
+  static
   add-resource! ;; used by the verb-routing macros
   halt redirect
   log-err log-dbg
@@ -41,6 +42,11 @@
   chicken.io
   chicken.condition
   chicken.string
+  chicken.file
+  chicken.pathname
+  chicken.file.posix
+  chicken.time.posix
+  sendfile
   spiffy
   format
   uri-common
@@ -133,6 +139,11 @@
     ;; If tree is not a list or is empty, no match
     [(not (and (list? tree) (>= (length tree) 2)))
      #f]
+    ;; Handle wildcard match - captures all remaining path segments
+    [(string=? (car tree) "*")
+     (if (procedure? (cadr tree))
+	 (list (cadr tree) (cons (cons "*" (string-join path "/")) params))
+	 #f)]
     ;; Try to match first path element with tree node
     [(or (string=? (car path) (car tree))
          (and (string-prefix? ":" (car tree)) (not (null? path))))
@@ -231,13 +242,11 @@
  ;;
  ;; Parameters:
  ;;   path: string - URL path pattern (e.g., "/users", "/api/posts/:id", "/users/:user-id/posts/:post-id")
- ;;   req: symbol - Request parameter name (typically 'req')
  ;;   params: symbol - Parameters parameter name (typically 'params')
  ;;   body: expressions - Route handler body that processes the request
  ;;
  ;; Handler Parameters:
- ;;   The route handler receives two parameters:
- ;;     req: HTTP request object containing headers, method, URI, etc.
+ ;;   The route handler receives one parameter:
  ;;     params: association list containing both path parameters and query parameters
  ;;
  ;; Parameters:
@@ -260,15 +269,15 @@
  ;;
  ;; Example usage:
  ;;   ;; Simple static route
- ;;   (get ("/hello" req params) "Hello, World!")
+ ;;   (get ("/hello" params) "Hello, World!")
  ;;
  ;;   ;; Route with parameters
- ;;   (get ("/users/:id" req params)
+ ;;   (get ("/users/:id" params)
  ;;        (let ((user-id (alist-ref "id" params equal?)))
  ;;          (format "User ID: ~A" user-id)))
  ;;
  ;;   ;; Route with multiple parameters
- ;;   (get ("/users/:user-id/posts/:post-id" req params)
+ ;;   (get ("/users/:user-id/posts/:post-id" params)
  ;;        (let ((user-id (alist-ref "user-id" params equal?))
  ;;              (post-id (alist-ref "post-id" params equal?)))
  ;;          (format "User ~A, Post ~A" user-id post-id)))
@@ -281,7 +290,6 @@
  ;;
  ;; Parameters:
  ;;   path: string - URL path pattern (e.g., "/users", "/api/posts", "/users/:id")
- ;;   req: symbol - Request parameter name (typically 'req')
  ;;   params: symbol - Parameters parameter name (typically 'params')
  ;;   body: expressions - Route handler body that processes the request
  ;;
@@ -531,6 +539,42 @@
    (let ((location (if (string? location) (uri-reference location) location)))
      (halt status "" `((location . (,location))))))
 
+ (define (headers-for-file path)
+   (let* ((req (current-request))
+	  (h   (request-headers req))
+	  (size (file-size path))
+	  (last-modified (file-modification-time path))
+	  (ext (pathname-extension path)))
+     `((last-modified #(,(seconds->utc-time last-modified) ()))
+       (content-length ,size)
+       (content-type ,(file-extension->mime-type ext)))))
+
+ ;; Serve static files from a directory
+ ;;
+ ;; Registers a route to serve static files from the filesystem.
+ ;; Uses a wildcard pattern to capture all remaining path segments.
+ ;;
+ ;; Parameters:
+ ;;   path-prefix: string - URL path prefix (e.g., "/static", "/assets")
+ ;;   directory: string - Local filesystem directory to serve files from
+ ;;
+ ;; Example usage:
+ ;;   (static "/static" "./public")
+ ;;   ;; Now /static/style.css serves ./public/style.css
+ ;;   ;; And /static/js/app.js serves ./public/js/app.js
+ (define (static path-prefix directory)
+   (let ((route-pattern (string-append path-prefix "/*")))
+     (get (route-pattern params)
+          (let* ((file-path (alist-ref "*" params equal?))
+                 (full-path (make-pathname directory file-path)))
+            ;; Security: prevent directory traversal
+            (if (string-contains file-path "..")
+                (halt 'not-found "File not found"))
+            (if (and (file-exists? full-path)
+                     (not (directory-exists? full-path)))
+                `(static-file ,full-path ,(headers-for-file full-path))
+                (halt 'not-found "File not found"))))))
+
  (define (is-response? list)
    (and
     ;; is this a list?
@@ -554,10 +598,12 @@
      (update-response response status: 'ok)]
     [(is-response? tuple)
      (current-body (cadr tuple))
-     (let ((new-headers (if (= 3 (length tuple)) (caddr tuple) '())))
+     (let* ((new-headers (if (= 3 (length tuple)) (caddr tuple) '()))
+            (raw-status (car tuple))
+            (status (if (eq? raw-status 'static-file) 'ok raw-status)))
        (update-response
-	response
-	status: (car tuple)
+        response
+        status: status
         headers: (intarweb:headers new-headers (response-headers response))))]
     [else
      (current-body (format #f "Error: response type not supported (~A)" tuple))
@@ -704,6 +750,14 @@
 
  (define current-body (make-parameter #f))
 
+ ;; from spiffy.scm
+ (define (call-with-input-file* file proc)
+   (call-with-input-file file (lambda (p)
+                                (handle-exceptions exn
+                                                   (begin (close-input-port p) (raise exn))
+                                                   (proc p)))
+                         #:binary))
+
  ;; router
  (define (schematra-router continue)
    (let* ((request (current-request))
@@ -717,29 +771,38 @@
      (if resource
          (parameterize ((request-cookies (alist->hash-table raw-cookies))
                         (response-cookies (make-hash-table))
-			(current-body #f))
+                        (current-body #f))
            (let* ((handler (car resource))
                   (route-params (cadr resource))
                   (params (append route-params (uri-query uri))))
              ;; this condition-case is here to handle halts that might happen mid-routing
              (condition-case
               (let* ((response-tuple (apply-middleware-stack params handler))
+                     (orig-status (if (list? response-tuple) (car response-tuple) #f))
                      (old-headers (response-headers (current-response)))
                      (new-headers (intarweb:headers (cookies->alist (response-cookies))
                                                     old-headers)))
                 (current-response (update-response (current-response)
                                                    headers: new-headers))
                 (current-response (update-response-with-tuple! (current-response) response-tuple))
-		;; need to include the body here
-                (send-response body: (current-body)))
+                ;; need to include the body here, either send the file or just the string
+                (if (eq? orig-status 'static-file)
+                    (condition-case
+                     (call-with-input-file* (current-body)
+                                            (lambda (f)
+                                              (write-logged-response)
+                                              (sendfile f (response-port (current-response)))
+                                              (finish-response-body (current-response))))
+                     [(exn i/o file) (send-status 'forbidden)])
+                    (send-response body: (current-body))))
               [exn (halt-condition)
                    (let* ((status       (get-condition-property exn 'halt-condition 'status))
                           (body         (get-condition-property exn 'halt-condition 'body))
                           (halt-headers (get-condition-property exn 'halt-condition 'headers))
                           (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies)))))
-		     (current-response (update-response-with-tuple! (current-response) (list status body new-headers)))
+                     (current-response (update-response-with-tuple! (current-response) (list status body new-headers)))
                      (send-response body: body))])))
-	 ;; resource not found, let if spiffy handle it
+         ;; resource not found, let if spiffy handle it
          (continue))))
 
  ;; Install the Schematra router as a virtual host handler
