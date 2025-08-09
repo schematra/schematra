@@ -125,8 +125,13 @@
  ;; attributes and the last element is expected to be the body, which can
  ;; be nested element-specs.
  ;;
+ ;; String content is automatically HTML-sanitized to prevent XSS attacks.
+ ;; To inject raw HTML without sanitization, wrap it with (raw "content"):
+ ;;
  ;; Examples:
  ;; (ccup/html `[.h-4.w-4 "content"]) -> <div class="h-4 w-4">content</div>
+ ;; (ccup/html `[div "< & >"]) -> <div>&lt; &amp; &gt;</div>
+ ;; (ccup/html `[div (raw "<em>italic</em>")]) -> <div><em>italic</em></div>
  ;; (ccup/html
  ;;   `[ul#foo ({ hx-post . "/my/endpoint"})
  ;;     [li "some item"]])
