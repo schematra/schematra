@@ -1,5 +1,5 @@
-;; Chiccup - part of Schematra. Chiccup is a very simple templating
-;; system inspired in both haml and hiccup.
+;; Chiccup - part of Schematra. Chiccup is a very simple HTML
+;; rendering system inspired in both haml and hiccup.
 ;; Copyright (c) 2025 Rolando Abarca <cpm.rolandoa@gmail.com>
 ;;
 ;; This program is free software: you can redistribute it and/or
@@ -16,7 +16,8 @@
 ;; along with this program. If not, see
 ;; <https://www.gnu.org/licenses/>.
 
-(module chiccup
+(module
+ chiccup
  (
   ccup/html
   ) ;; end export list
@@ -33,7 +34,11 @@
    '(area base br col embed hr img input link meta source track wbr))
 
  ;; Return a list of substrings of STR split on '.'.
- ;; e.g. "foo.bar" => '("foo" "bar")
+ ;;
+ ;; ## Example
+ ;; ```scheme
+ ;; "foo.bar" => '("foo" "bar")
+ ;; ```
  (define (split-on-dot str)
    (let ((len (string-length str)))
      (let loop ((i 0) (start 0) (acc '()))
@@ -45,13 +50,16 @@
 
  ;; Parse a CSS-style selector string or symbol into parts (tag, classes, id)
  ;;
- ;; Examples:
- ;; (parse-selector "div") => ("div" () #f)
- ;; (parse-selector 'div.cls) => ("div" ("cls") #f)
- ;; (parse-selector ".cls") => ("div" ("cls") #f)
- ;; (parse-selector "div#id") => ("div" () "id")
- ;; (parse-selector "#id") => ("div" () "id")
- ;; Note: Following CSS conventions, ID (#id) must come last in the selector.
+ ;; ## Examples
+ ;; ```scheme
+ ;; (parse-selector "div")     => ("div" () #f)
+ ;; (parse-selector 'div.cls)  => ("div" ("cls") #f)
+ ;; (parse-selector ".cls")    => ("div" ("cls") #f)
+ ;; (parse-selector "div#id")  => ("div" () "id")
+ ;; (parse-selector "#id")     => ("div" () "id")
+ ;; ```
+ ;;
+ ;; **Note:** Following CSS conventions, ID (#id) must come last in the selector.
  (define (parse-selector selector)
    (let* ((selector-str (if (symbol? selector)
                             (symbol->string selector)
@@ -75,16 +83,20 @@
 
  ;; Convert a parsed selector specification into an attribute alist.
  ;;
- ;; SPEC-LIST should be a list of the form (tag classes id) where:
- ;;   - tag is a symbol representing the HTML tag name
- ;;   - classes is a list of strings representing CSS classes
- ;;   - id is a string or #f representing the element ID
+ ;; ## Parameters
+ ;; `SPEC-LIST` should be a list of the form `(tag classes id)` where:
+ ;; - `tag` is a symbol representing the HTML tag name
+ ;; - `classes` is a list of strings representing CSS classes
+ ;; - `id` is a string or `#f` representing the element ID
  ;;
- ;; Returns an alist of (attr-name . attr-value) pairs suitable for HTML element
+ ;; ## Returns
+ ;; An alist of `(attr-name . attr-value)` pairs suitable for HTML element
  ;; attributes. Empty when given invalid input.
  ;;
- ;; Example: '(div ("btn" "primary") "submit") =>
- ;;          '(("class" . "btn primary") ("id" . "submit"))
+ ;; ## Example
+ ;; ```scheme
+ ;; '(div ("btn" "primary") "submit") => '(("class" . "btn primary") ("id" . "submit"))
+ ;; ```
  (define (build-attrs spec-list)
    (if (= (length spec-list) 3)
        (let ((classes (cadr spec-list))
@@ -117,25 +129,35 @@
    (string-translate* str '(("<" . "&lt;")    (">" . "&gt;")
                             ("\"" . "&quot;") ("'" . "&#x27;") ("&" . "&amp;"))))
 
- ;; Generate an HTML tag from an element-spec list.
- ;;
- ;; ELEMENT-SPEC is a list with at least one item that defines a
- ;; css-inspired selector. If the tag name is not specified it's assumed
- ;; to be a `div`. The second element can be an alist with the extra
- ;; attributes and the last element is expected to be the body, which can
- ;; be nested element-specs.
- ;;
- ;; String content is automatically HTML-sanitized to prevent XSS attacks.
- ;; To inject raw HTML without sanitization, wrap it with (raw "content"):
- ;;
- ;; Examples:
- ;; (ccup/html `[.h-4.w-4 "content"]) -> <div class="h-4 w-4">content</div>
- ;; (ccup/html `[div "< & >"]) -> <div>&lt; &amp; &gt;</div>
- ;; (ccup/html `[div (raw "<em>italic</em>")]) -> <div><em>italic</em></div>
- ;; (ccup/html
- ;;   `[ul#foo ({ hx-post . "/my/endpoint"})
- ;;     [li "some item"]])
- ;; -> <ul id="foo" hx-post="/my/endpoint"><li>some item</li></ul>
+;;; Generate an HTML tag from an element-spec list.
+;;;
+;;; ### Parameters
+;;; `ELEMENT-SPEC` is a list with at least one item that defines a
+;;; CSS-inspired selector. If the tag name is not specified it's assumed
+;;; to be a `div`. The second element can be an alist with the extra
+;;; attributes and the last element is expected to be the body, which can
+;;; be nested element-specs.
+;;;
+;;; ### Security
+;;; String content is automatically HTML-sanitized to prevent XSS attacks.
+;;; To inject raw HTML without sanitization, wrap it with `(raw "content")`.
+;;;
+;;; ### Examples
+;;; ```scheme
+;;; (ccup/html `[.h-4.w-4 "content"])
+;;; ;; => <div class="h-4 w-4">content</div>
+;;;
+;;; (ccup/html `[div "< & >"])
+;;; ;; => <div>&lt; &amp; &gt;</div>
+;;;
+;;; (ccup/html `[div (raw "<em>italic</em>")])
+;;; ;; => <div><em>italic</em></div>
+;;;
+;;; (ccup/html
+;;;   `[ul#foo ({ hx-post . "/my/endpoint"})
+;;;     [li "some item"]])
+;;; ;; => <ul id="foo" hx-post="/my/endpoint"><li>some item</li></ul>
+;;; ```
  (define (ccup/html element-spec)
    (let* ( ;; parse the selector
 	  (parsed (parse-selector (car element-spec)))
@@ -188,4 +210,5 @@
 	   (conc "<" tag attr-str ">"))
 	 (let ((prefix (if (eq? tag 'html) "!DOCTYPE " "")))
 	   (conc "<" prefix tag attr-str ">" body-str "</" tag ">")))))
- ) ;; end module
+ ;; end module
+ )
