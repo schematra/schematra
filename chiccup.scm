@@ -25,8 +25,8 @@
  (import format
 	 srfi-1
 	 srfi-13
-	 (chicken base)
-	 (chicken string))
+	 chicken.base
+	 chicken.string)
 
  ;; https://developer.mozilla.org/en-US/docs/Glossary/Void_element
  (define void-elements
@@ -112,6 +112,11 @@
           (non-class-explicit (filter (lambda (attr) (not (string=? (car attr) "class"))) explicit-attrs)))
      (append merged-class-attr non-class-spec non-class-explicit)))
 
+ ;; copied from Spiffy
+ (define (htmlize str)
+   (string-translate* str '(("<" . "&lt;")    (">" . "&gt;")
+                            ("\"" . "&quot;") ("'" . "&#x27;") ("&" . "&amp;"))))
+
  ;; Generate an HTML tag from an element-spec list.
  ;;
  ;; ELEMENT-SPEC is a list with at least one item that defines a
@@ -161,7 +166,10 @@
 			(apply string-append
 			       (map (lambda (part)
 				      (cond
-				       ((string? part) part)
+				       ;; sanitize string
+				       ((string? part) (htmlize part))
+				       ;; allow raw strings [tag ('raw "<em>text</em>")]
+				       ((and (list? part) (eq? (car part) 'raw)) (cadr part))
 				       ;; assume a list is another element spec
 				       ((list? part) (ccup/html part))
 				       ;; anything else, just try its string representation
