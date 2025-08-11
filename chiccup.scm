@@ -20,6 +20,7 @@
  chiccup
  (
   ccup/html
+  ccup/doctype
   ) ;; end export list
 
  (import scheme)
@@ -32,21 +33,6 @@
  ;; https://developer.mozilla.org/en-US/docs/Glossary/Void_element
  (define void-elements
    '(area base br col embed hr img input link meta source track wbr))
-
- ;; Return a list of substrings of STR split on '.'.
- ;;
- ;; ## Example
- ;; ```scheme
- ;; "foo.bar" => '("foo" "bar")
- ;; ```
- (define (split-on-dot str)
-   (let ((len (string-length str)))
-     (let loop ((i 0) (start 0) (acc '()))
-       (if (= i len)
-	   (reverse (cons (substring str start len) acc))
-	   (if (char=? (string-ref str i) #\.)
-	       (loop (add1 i) (add1 i) (cons (substring str start i) acc))
-	       (loop (add1 i) start acc))))))
 
  ;; Parse a CSS-style selector string or symbol into parts (tag, classes, id)
  ;;
@@ -121,13 +107,36 @@
             (explicit-class `(,explicit-class))
             (else '())))
           (non-class-spec (filter (lambda (attr) (not (string=? (car attr) "class"))) spec-attrs))
-          (non-class-explicit (filter (lambda (attr) (not (string=? (car attr) "class"))) explicit-attrs)))
-     (append merged-class-attr non-class-spec non-class-explicit)))
+          (non-class-explicit (filter (lambda (attr) (not (string=? (car attr) "class"))) explicit-attrs))
+	  (explicit-keys (map car non-class-explicit))
+	  (spec-pruned
+	   (filter (lambda (attr) (not (member (car attr) explicit-keys string=?)))
+		   non-class-spec)))
+     (append merged-class-attr spec-pruned non-class-explicit)))
 
  ;; copied from Spiffy
  (define (htmlize str)
-   (string-translate* str '(("<" . "&lt;")    (">" . "&gt;")
-                            ("\"" . "&quot;") ("'" . "&#x27;") ("&" . "&amp;"))))
+   (string-translate* (format "~A" str)
+		      '(("&" . "&amp;") ("<" . "&lt;") (">" . "&gt;") ("\"" . "&quot;") ("'" . "&#x27;"))))
+
+ (define ccup/doctype (make-parameter "<!doctype html>"))
+
+ (define (attr-key->string k)
+   (cond ((string? k) k)
+	 ((symbol? k) (string-translate (string-downcase (symbol->string k)) "_" "-"))
+	 (else (format "~A" k))))
+
+ (define (normalize-attrs alist)
+   (map (lambda (p) (cons (attr-key->string (car p)) (cdr p))) alist))
+
+ (define (render-attr attr)
+   (let ((k (car attr))
+	 (v (cdr attr)))
+     (cond
+      ((eq? v #t) (attr-key->string k)) ;; boolean attribute
+      ((or (eq? v #f) (not v)) #f) ;; omit false/nil
+      (else (string-append (attr-key->string k)
+			   "=\"" (htmlize v) "\"")))))
 
 ;;; Generate an HTML tag from an element-spec list.
 ;;;
@@ -157,6 +166,10 @@
 ;;;   `[ul#foo ({ hx-post . "/my/endpoint"})
 ;;;     [li "some item"]])
 ;;; ;; => <ul id="foo" hx-post="/my/endpoint"><li>some item</li></ul>
+;;;
+;;; (ccup/html
+;;;   `[button ((disabled . #t)) "the button"])
+;;; ;; => <button disabled>the button</button>
 ;;; ```
  (define (ccup/html element-spec)
    (let* ( ;; parse the selector
@@ -170,8 +183,8 @@
 		(not (null? second-arg))
 		(pair? (car second-arg))))
 	  ;; merge the two possible attribute lists
-	  (merged-attrs
-	   (if has-explicit-attrs? (merge-attrs spec-attrs second-arg) spec-attrs))
+	  (explicit-attrs* (if has-explicit-attrs? (normalize-attrs second-arg) '()))
+	  (merged-attrs (merge-attrs spec-attrs explicit-attrs*))
 	  ;; collect the body parts, which can be a string or another
 	  ;; element-spec
 	  (body-parts
@@ -179,14 +192,10 @@
 	       (cddr element-spec) ; skip selector and attrs, take rest as body
 	       (cdr element-spec))) ; skip selector, take rest as body
 	  ;; build the final attribute string
-	  (attr-str (if (null? merged-attrs)
+	  (rendered-attrs (filter identity (map render-attr merged-attrs)))
+	  (attr-str (if (null? rendered-attrs)
 			""
-			(string-append " "
-				       (string-join
-					(map (lambda (pr)
-					       (string-append (car pr) "=\"" (cdr pr) "\""))
-					     merged-attrs)
-					" "))))
+			(string-append " " (string-join rendered-attrs))))
 	  ;; build the body
 	  (body-str (if (null? body-parts)
 			""
@@ -195,9 +204,11 @@
 				      (cond
 				       ;; sanitize string
 				       ((string? part) (htmlize part))
+				       ;; skip empty parts
+				       ((null? part) "")
 				       ;; allow raw strings [tag ('raw "<em>text</em>")]
 				       ((and (list? part) (eq? (car part) 'raw)) (cadr part))
-				       ;; assume a list is another element spec
+				       ;; assume a list might be another element spec
 				       ((list? part) (ccup/html part))
 				       ;; anything else, just try its string representation
 				       (else (format "~A" part))))
@@ -207,8 +218,10 @@
 	 (begin
 	   (when (not (null? body-parts))
 	     (error (format "Void element '~a' cannot have body content: ~a" tag body-parts)))
-	   (conc "<" tag attr-str ">"))
-	 (let ((prefix (if (eq? tag 'html) "!DOCTYPE " "")))
-	   (conc "<" prefix tag attr-str ">" body-str "</" tag ">")))))
+	   (string-append "<" (symbol->string tag) attr-str ">"))
+	 (let ((tag-str (symbol->string tag)))
+	   (if (eq? tag 'html)
+	       (string-append (ccup/doctype) "<html" attr-str ">" body-str "</html>")
+	       (string-append "<" tag-str attr-str ">" body-str "</" tag-str ">"))))))
  ;; end module
  )
