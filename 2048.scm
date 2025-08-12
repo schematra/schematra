@@ -183,6 +183,8 @@
         (ccup/html (render-grid))))
 
 (post ("/2048/move/:direction" params)
+      ;; game-grid is the "state" that is leveraged by components when
+      ;; rendering the game. In this case, the game-grid.
       (parameterize ((game-grid (session-get "game-state")))
         (let ((direction (string->symbol (alist-ref "direction" params equal?)))
 	      (old-grid (vector-copy (game-grid))))
@@ -193,4 +195,4 @@
           (ccup/html (render-grid)))))
 
 (schematra-install)
-(schematra-start development?: #t)
+(schematra-start development?: #t nrepl?: #f)

@@ -763,7 +763,7 @@
      (if (null? middlewares)
          (handler params)
          (let ((middleware (car middlewares))
-               (remaining  (cdr middlewares)))
+	       (remaining  (cdr middlewares)))
            (middleware params (lambda () (loop remaining)))))))
 
  (handle-exception
@@ -928,7 +928,7 @@
  ;;; ;; Development mode with custom ports
  ;;; (schematra-start development?: #t port: 8080 repl-port: 1234)
  ;;; ```
- (define (schematra-start #!key (development? #f) (port 8080) (repl-port 1234) (bind-address #f))
+ (define (schematra-start #!key (development? #f) (port 8080) (repl-port 1234) (bind-address #f) (nrepl? #t))
    (access-log ##sys#standard-output)
    (error-log ##sys#standard-error)
 
@@ -943,11 +943,12 @@
 
    (if development?
        (begin
-         (import nrepl)
          (set! development-mode? #t)
          ;; start the server inside a thread, then start the nrepl in port `repl-port`
          (thread-start!
           (lambda ()
             (start-server)))
-         (nrepl repl-port))
+	 (when nrepl?
+           (import nrepl)
+           (nrepl repl-port)))
        (start-server))))

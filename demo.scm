@@ -4,6 +4,7 @@
  chiccup
  format
  intarweb
+ spiffy ;; current-request
 )
 
 (define (html-layout title body)
@@ -84,8 +85,10 @@
 (post ("/test" params)
       (let* ((request (current-request))
 	     (body (request-body-string request))
-	     (content-type (header-value 'content-type (request-headers request))))
-	(format "Body: ~A; content-type: ~A" body content-type)))
+	     (content-type (header-value 'content-type (request-headers request)))
+	     (body-str (format "Body: ~A; content-type: ~A" body content-type)))
+	`(ok ,body-str ((content-type text/plain)
+			(cache-control (max-age . 3600))))))
 
 (get ("/tw-demo" params)
      (ccup/html
@@ -114,4 +117,4 @@
 (static "/static" ".")
 
 (schematra-install)
-(schematra-start development?: #t)
+(schematra-start development?: #t nrepl?: #f)
