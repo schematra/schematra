@@ -90,6 +90,9 @@
 	`(ok ,body-str ((content-type text/plain)
 			(cache-control (max-age . 3600))))))
 
+(get ("/test-json" params)
+     (send-json-response '((error . "something went wrong, I think"))))
+
 (get ("/tw-demo" params)
      (ccup/html
       `[html

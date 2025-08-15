@@ -31,6 +31,7 @@
   cookie-set! cookie-delete! cookie-ref
   use-middleware!
   request-body-string
+  send-json-response
   schematra-install
   schematra-start
   ) ; end export list
@@ -46,6 +47,7 @@
   chicken.pathname
   chicken.file.posix
   chicken.time.posix
+  medea ;; for send-json
   sendfile
   spiffy
   format
@@ -751,6 +753,11 @@
                      (let ((val (vector-ref val-vector 0)))
                        `(set-cookie #((,key . ,val) ,(vector-ref val-vector 1))))
                      )))
+
+ ;; helper to output json content
+ (define (send-json-response datum #!optional (status 'ok))
+   (let ((output (json->string datum)))
+    `(,status ,output ((content-type application/json)))))
 
  ;; middleware
  (define middleware-stack '())

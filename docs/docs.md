@@ -470,6 +470,33 @@ Sends an HTTP redirect response with the Location header set. The default status
       (redirect "/success" 'see-other))
 ```
 
+#### `(send-json-response datum [status])`
+Send a JSON response with proper content-type headers.
+
+Automatically serializes Scheme data structures to JSON and sets the appropriate `content-type` header. The default status is `ok` (200).
+
+```scheme
+;; Simple JSON response
+(get ("/api/status" params)
+     (send-json-response '((status . "healthy") (version . "1.0"))))
+
+;; Custom status code
+(post ("/api/users" params)
+      (let ((user (create-user! params)))
+        (send-json-response
+          `((id . ,(user-id user)) (created . #t))
+          'created)))
+
+;; Error response
+(get ("/api/user/:id" params)
+     (let ((user (find-user (cdr (assoc "id" params)))))
+       (if user
+           (send-json-response (user->alist user))
+           (send-json-response
+             '((error . "User not found"))
+             'not-found))))
+```
+
 #### `(static path directory)`
 Serve static files from a directory. Mount them at `path` prefix.
 
