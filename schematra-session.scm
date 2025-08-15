@@ -1,5 +1,5 @@
 (module
- sessions
+ schematra-session
  (
   ;; procedures
   session-middleware
@@ -158,8 +158,8 @@
 			      (make-hash-table))))
        (parameterize ((session session-data))
 	 (dynamic-wind
-	     (lambda () #f)     ;; before thunk - do nothing
-	     (lambda () (next)) ;; main thun - continue the middleware stack
+	     (lambda () #f) ;; before thunk - do nothing
+	     (lambda () (next)) ;; main thunk - continue the middleware stack
 	     (lambda ()         ;; after thunk - always run
 	       (if (hash-table-exists? (session) session-dirty-key)
 		   (cookie-set! (session-key)

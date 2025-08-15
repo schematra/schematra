@@ -20,7 +20,7 @@
   uri-common
   ;; schematra modules
   schematra
-  sessions)
+  schematra-session)
 
  ;; Base URL parameter for OAuth2 callback URLs
  ;;

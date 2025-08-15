@@ -57,7 +57,8 @@
   srfi-1
   srfi-13
   srfi-18
-  srfi-69)
+  srfi-69
+  chiccup)
 
  (define version-major "0")
  (define version-minor "1")
@@ -761,6 +762,10 @@
                (remaining  (cdr middlewares)))
            (middleware (lambda () (loop remaining)))))))
 
+ (define (build-error-page exn)
+   (ccup/html
+    `[p "Got an error: " ,(format "~a" exn)]))
+
  (handle-exception
   (lambda (exn chain)
     (let ((is-sse (and (current-response)
@@ -769,7 +774,9 @@
       (if is-sse
           (log-err "[ERROR] SSE connection closed: ~A" exn)
           ;; only send status for other reqs
-          (send-status 'internal-server-error (build-error-message exn chain))))))
+	  (begin
+	    (log-err (build-error-message exn chain #t))
+            (send-status 'internal-server-error (build-error-page exn)))))))
 
  (define current-body (make-parameter #f))
 

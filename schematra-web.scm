@@ -22,10 +22,14 @@
   chicken.pretty-print
   srfi-13
   schematra
+  schematra-session
+  schematra-csrf
   schematra-body-parser
   chiccup)
 
 (use-middleware! (body-parser-middleware))
+(use-middleware! (session-middleware "secret"))
+(use-middleware! (csrf-middleware))
 
 (define (add-google-font  name #!optional (weight 400))
   `[link ((rel . "stylesheet")
@@ -197,7 +201,7 @@ EXAMPLE
 	  [script ((src . "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/scheme.min.js"))]
 	  [script "hljs.highlightAll();"]]])
 
-(define landing-page
+(define (landing-page)
   `[.max-w-4xl.mx-auto.text-center
     [img.mx-auto.mb-6.h-16.w-auto.sm:h-20.lg:h-24 (("src" . "/static/logo.png") ("alt" . "Schematra Logo"))]
     [h1.text-3xl.sm:text-4xl.lg:text-5xl.font-bold.text-teal-900.mb-4.sm:mb-6.cookie-regular "(Schematra)"]
@@ -262,9 +266,10 @@ EXAMPLE
           [button.text-sm.bg-teal-100.text-teal-700.px-3.py-1.rounded.hover:bg-teal-200
            ((hx-get . "/playground/list") (hx-target . "#chiccup-input") (hx-swap . "outerHTML")) "List"]]]
         [form ((hx-post . "/playground/render") (hx-target . "#html-preview"))
-         [textarea.w-full.h-80.p-3.border.rounded.font-mono.text-sm.resize-none.focus:outline-none.focus:ring-2.focus:ring-teal-500#chiccup-input
-          ((name . "chiccup") (placeholder . "Try editing the Chiccup code...")
-           (hx-get . "/playground/card") (hx-trigger . "load") (hx-swap . "outerHTML") (hx-target . "#chiccup-input"))]
+	      ,(chiccup-csrf-hidden-input)
+              [textarea.w-full.h-80.p-3.border.rounded.font-mono.text-sm.resize-none.focus:outline-none.focus:ring-2.focus:ring-teal-500#chiccup-input
+               ((name . "chiccup") (placeholder . "Try editing the Chiccup code...")
+		(hx-get . "/playground/card") (hx-trigger . "load") (hx-swap . "outerHTML") (hx-target . "#chiccup-input"))]
          [.mt-3
           [button.bg-teal-600.text-white.px-4.py-2.rounded.hover:bg-teal-700.font-semibold
            ((type . "submit")) "Render Preview"]]]]
@@ -349,7 +354,7 @@ EXAMPLE
             (ccup/html `[p "No code provided"]))))
 
 (get ("/")
-     (ccup/html (layout landing-page)))
+     (ccup/html (layout (landing-page))))
 
 (get ("/api")
      (redirect "https://github.com/schematra/schematra"))
