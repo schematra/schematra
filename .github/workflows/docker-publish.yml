@@ -45,6 +45,11 @@ jobs:
         with:
           cosign-release: 'v2.2.4'
 
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platform: arm64
+
       # Set up BuildKit Docker container builder to be able to build
       # multi-platform images and export cache
       # https://github.com/docker/setup-buildx-action
