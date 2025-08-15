@@ -106,3 +106,30 @@ Contributions welcome! See our [contributing guidelines](docs/docs.md#contributi
 ## License
 
 GNU General Public License v3.0 - see [LICENSE.md](LICENSE.md) for details.
+
+## Logo License
+
+The Schematra logo (depicting a chicken wearing a fedora) is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0).
+
+**Copyright Notice:** © 2025 Rolando Abarca. All rights reserved.
+
+**Permitted Uses:** Under the CC BY-NC 4.0 license, you are free to:
+- Share — copy and redistribute the logo in any medium or format
+- Adapt — remix, transform, and build upon the logo
+- Use the logo in documentation, tutorials, articles, or educational materials
+- Use the logo in open source projects and non-commercial applications
+
+**License Requirements:** You must:
+- Give appropriate credit to Rolando Abarca
+- Provide a link to the license
+- Indicate if changes were made to the original logo
+- Use proper attribution: "Schematra logo © 2025 Rolando Abarca, licensed under CC BY-NC 4.0"
+
+**Restrictions:** You may not:
+- Use the logo for commercial purposes without explicit written permission
+- Use the logo in any manner that suggests endorsement of commercial products or services
+- Remove or obscure copyright notices or license information
+
+For commercial licensing inquiries or permission requests, please contact Rolando Abarca.
+
+Full license text: https://creativecommons.org/licenses/by-nc/4.0/
