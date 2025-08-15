@@ -1,17 +1,19 @@
 # Schematra
 
-<img src="public/logo.png" alt="Schematra Logo" width="600px"/>
+<img src="public/logo-sm.png" alt="Schematra Logo"/>
 
-*A Sinatra love letter in Scheme*
+*The web framework that makes complex things simple*
 
-A minimal web framework for [CHICKEN Scheme](https://call-cc.org/), inspired by [Sinatra](https://sinatrarb.com/). Schematra combines the elegance of Scheme with modern web development patterns.
+A modern web framework for [CHICKEN Scheme](https://call-cc.org/) that combines simplicity with power. Authentication in 3 lines. Middleware that's actually composable. HTML that looks like your data.
+
+🌐 **[Visit schematra.com](https://schematra.com)** for interactive examples and live demos.
 
 ## Why Schematra?
 
-- **Functional by Design**: Built for developers who appreciate functional programming principles
-- **Minimal & Understandable**: Simple enough to understand completely, powerful enough to build real applications
-- **Chiccup Templates**: Write HTML with Lisp syntax - components are just functions
-- **Modern Web Ready**: Works seamlessly with [Tailwind CSS](https://tailwindcss.com/) and [htmx](https://htmx.org/)
+- **Zero Config Sessions**: Cookie-based sessions work immediately. No setup, no database, no complexity
+- **HTML as Data**: Write `[.card [h1 "Title"]]` instead of wrestling with template engines
+- **3-Line Middleware**: Real middleware that composes. Write a function, call `use-middleware!`, done
+- **Express in 50 Lines vs Schematra in 15**: What takes other frameworks dozens of lines takes Schematra a few
 
 ## Features
 
@@ -32,15 +34,24 @@ cd schematra
 chicken-install
 ```
 
-### Hello World
+### Complete Web App
 
 ```scheme
-(import schematra chiccup)
+(import schematra chiccup sessions)
 
-(get ("/" params) 
-     (ccup/html `[html [body [h1 "Hello, Schematra!"]]]))
+(use-middleware! (session-middleware "secret-key"))
 
-(schematra-install)
+(get ("/" params)
+     (let ((user (session-get "username")))
+       (if user
+           (ccup/html `[h1 ,(format "Welcome back, ~a!" user)])
+           (redirect "/login"))))
+
+(post ("/login" params)
+      (let ((username (cdr (assoc "username" params))))
+        (session-set! "username" username)
+        (redirect "/")))
+
 (schematra-start)
 ```
 
@@ -54,7 +65,8 @@ For comprehensive documentation including:
 - **[Core Concepts](docs/docs.md#core-concepts)** - Routing, parameters, and request handling
 - **[Chiccup Templating](docs/docs.md#chiccup-templating)** - HTML generation with Lisp syntax
 - **[API Reference](docs/docs.md#api-reference)** - Complete function documentation
-- **[Advanced Topics](docs/docs.md#advanced-topics)** - Middleware, sessions, static files, and deployment
+- **[Middleware System](docs/docs.md#middleware-system)** - Composable request/response processing
+- **[Advanced Topics](docs/docs.md#advanced-topics)** - Sessions, static files, and deployment
 - **[Examples & Recipes](docs/docs.md#examples--recipes)** - Common patterns and use cases
 
 Visit the **[full documentation](docs/docs.md)**.
