@@ -149,8 +149,8 @@
     ;; Handle wildcard match - captures all remaining path segments
     [(string=? (car tree) "*")
      (if (procedure? (cadr tree))
-	 (list (cadr tree) (cons (cons "*" (string-join path "/")) params))
-	 #f)]
+         (list (cadr tree) (cons (cons "*" (string-join path "/")) params))
+         #f)]
     ;; Try to match first path element with tree node
     [(or (string=? (car path) (car tree))
          (and (string-prefix? ":" (car tree)) (not (null? path))))
@@ -379,7 +379,7 @@
                                               (connection keep-alive)
                                               (x-sse-handler #t)))))
         (write-logged-response)
-	(handler params)))
+        (handler params)))
 
  ;;; Send data to an SSE client
  ;;;
@@ -443,8 +443,8 @@
  ;;;   - Clients automatically reconnect on connection loss
  (define (write-sse-data data #!key id event)
    (let ((msg (conc (if id (conc "id: " id "\n") "")
-		    (if event (conc "event: " event "\n") "")
-		    "data: " data "\n\n")))
+                    (if event (conc "event: " event "\n") "")
+                    "data: " data "\n\n")))
      ;; this code will throw an i/o exception if the client
      ;; disconnects
      (display msg (response-port (current-response)))
@@ -565,10 +565,10 @@
 
  (define (headers-for-file path)
    (let* ((req (current-request))
-	  (h   (request-headers req))
-	  (size (file-size path))
-	  (last-modified (file-modification-time path))
-	  (ext (pathname-extension path)))
+          (h   (request-headers req))
+          (size (file-size path))
+          (last-modified (file-modification-time path))
+          (ext (pathname-extension path)))
      `((last-modified #(,(seconds->utc-time last-modified) ()))
        (content-length ,size)
        (content-type ,(file-extension->mime-type ext)))))
@@ -770,7 +770,7 @@
      (if (null? middlewares)
          (handler params)
          (let ((middleware (car middlewares))
-	       (remaining  (cdr middlewares)))
+               (remaining  (cdr middlewares)))
            (middleware params (lambda () (loop remaining)))))))
 
  (handle-exception
@@ -802,41 +802,52 @@
           (uri (request-uri request))
           (normalized-path (normalize-path (uri-path uri)))
           (route-handlers (hash-table-ref/default resources-tree-for-verb method #f))
-          (resource (and route-handlers (find-resource normalized-path route-handlers))))
+          (resource (and route-handlers (find-resource normalized-path route-handlers)))
+          ;; local param that will get updated later
+          (current-params (make-parameter '())))
      (if resource
          (parameterize ((request-cookies (alist->hash-table raw-cookies))
                         (response-cookies (make-hash-table))
-                        (current-body #f))
+                        (current-body #f)
+                        (current-params '()))
            (let* ((handler (car resource))
-                  (route-params (cadr resource))
-                  (params (append route-params (uri-query uri))))
+                  (route-params (cadr resource)))
+             (current-params (append route-params (uri-query uri)))
+             ;; if this is a post request and there's data & url-form
+             ;; encoded, parse the body
+             (when (and (request-has-message-body? request)
+                        (eq? 'application/x-www-form-urlencoded
+                             (header-value 'content-type headers)))
+               (current-params (append (read-urlencoded-request-data request) (current-params))))
              ;; this condition-case is here to handle halts that might happen mid-routing
              (condition-case
-              (let* ((response-tuple (apply-middleware-stack params handler))
-                     (orig-status (if (list? response-tuple) (car response-tuple) #f))
-                     (old-headers (response-headers (current-response)))
-                     (new-headers (intarweb:headers (cookies->alist (response-cookies))
-                                                    old-headers)))
-                (current-response (update-response (current-response)
-                                                   headers: new-headers))
-                (current-response (update-response-with-tuple! (current-response) response-tuple))
-                ;; need to include the body here, either send the file or just the string
-                (if (eq? orig-status 'static-file)
-                    (condition-case
-                     (call-with-input-file* (current-body)
-                                            (lambda (f)
-                                              (write-logged-response)
-                                              (sendfile f (response-port (current-response)))
-                                              (finish-response-body (current-response))))
-                     [(exn i/o file) (send-status 'forbidden)])
-                    (send-response body: (current-body))))
-              [exn (halt-condition)
-                   (let* ((status       (get-condition-property exn 'halt-condition 'status))
-                          (body         (get-condition-property exn 'halt-condition 'body))
-                          (halt-headers (get-condition-property exn 'halt-condition 'headers))
-                          (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies)))))
-                     (current-response (update-response-with-tuple! (current-response) (list status body new-headers)))
-                     (send-response body: body))])))
+                 ;; TODO: maybe remove params as an argument, let
+                 ;; middleware use params as parameter
+                 (let* ((response-tuple (apply-middleware-stack (current-params) handler))
+                        (orig-status (if (list? response-tuple) (car response-tuple) #f))
+                        (old-headers (response-headers (current-response)))
+                        (new-headers (intarweb:headers (cookies->alist (response-cookies))
+                                                       old-headers)))
+                   (current-response (update-response (current-response)
+                                                      headers: new-headers))
+                   (current-response (update-response-with-tuple! (current-response) response-tuple))
+                   ;; need to include the body here, either send the file or just the string
+                   (if (eq? orig-status 'static-file)
+                       (condition-case
+                           (call-with-input-file* (current-body)
+                                                  (lambda (f)
+                                                    (write-logged-response)
+                                                    (sendfile f (response-port (current-response)))
+                                                    (finish-response-body (current-response))))
+                         [(exn i/o file) (send-status 'forbidden)])
+                       (send-response body: (current-body))))
+               [exn (halt-condition)
+                    (let* ((status       (get-condition-property exn 'halt-condition 'status))
+                           (body         (get-condition-property exn 'halt-condition 'body))
+                           (halt-headers (get-condition-property exn 'halt-condition 'headers))
+                           (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies)))))
+                      (current-response (update-response-with-tuple! (current-response) (list status body new-headers)))
+                      (send-response status: status body: body))])))
          ;; resource not found, let if spiffy handle it
          (continue))))
 
@@ -895,10 +906,10 @@
 
  (define (schematra-banner)
    (let ((port (server-port))
-	 (address (or (server-bind-address) "(all)")))
+         (address (or (server-bind-address) "(all)")))
      (conc schematra-logo "\n"
-	   "Schematra version: " version-major "." version-minor "." version-patch "\n"
-	   "Listening on " address ":" port "\n")))
+           "Schematra version: " version-major "." version-minor "." version-patch "\n"
+           "Listening on " address ":" port "\n")))
 
  ;;; Start the Schematra web server
  ;;;
@@ -942,8 +953,8 @@
    ;; NOTE: figure out if we want to keep these params as arguments to
    ;; the start function or let the user set them as they want.
    (server-software `(("Schematra"
-		       ,(conc version-major "." version-minor)
-		       ,(conc "Running on CHICKEN " (chicken-version)))))
+                       ,(conc version-major "." version-minor)
+                       ,(conc "Running on CHICKEN " (chicken-version)))))
    (server-port port)
    (server-bind-address bind-address)
    (display (schematra-banner))
@@ -955,7 +966,7 @@
          (thread-start!
           (lambda ()
             (start-server)))
-	 (when nrepl?
+         (when nrepl?
            (import nrepl)
            (nrepl repl-port)))
        (start-server))))
