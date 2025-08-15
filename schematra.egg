@@ -23,5 +23,6 @@
 	     (extension schematra)
 	     (extension sessions)
 	     (extension oauthtoothy)
-	     (extension schematra-csrf)))
+	     (extension schematra-csrf)
+	     (extension schematra-body-parser)))
 

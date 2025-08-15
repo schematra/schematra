@@ -6,10 +6,12 @@
  schematra
  chiccup
  sessions
- schematra-csrf)
+ schematra-csrf
+ schematra-body-parser)
 
 (use-middleware! (session-middleware "secret"))
 (use-middleware! (csrf-middleware))
+(use-middleware! (body-parser-middleware))
 
 ;; HTML layout function
 (define (html-layout title body)
@@ -172,21 +174,21 @@
     ,(footer)])
 
 ;; Routes
-(get ("/2048" params)
+(get ("/2048")
      (parameterize ((game-grid (or (session-get "game-state" #f) (new-game))))
        (session-set! "game-state" (game-grid))
        (html-layout "2048 Game" (game-2048-content))))
 
-(post ("/2048/new-game" params)
+(post ("/2048/new-game")
       (parameterize ((game-grid (new-game)))
 	(session-set! "game-state" (game-grid))
         (ccup/html (render-grid))))
 
-(post ("/2048/move/:direction" params)
+(post ("/2048/move/:direction")
       ;; game-grid is the "state" that is leveraged by components when
       ;; rendering the game. In this case, the game-grid.
       (parameterize ((game-grid (session-get "game-state")))
-        (let ((direction (string->symbol (alist-ref "direction" params equal?)))
+        (let ((direction (string->symbol (alist-ref "direction" (current-params) equal?)))
 	      (old-grid (vector-copy (game-grid))))
           (move-tiles direction)
 	  (when (not (equal? old-grid (game-grid)))

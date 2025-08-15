@@ -71,7 +71,7 @@
  ;;;              (value ,token))))
  ;;;
  ;;; ;; Get token for AJAX requests
- ;;; (get ("/api/token" params)
+ ;;; (get ("/api/token")
  ;;;      (csrf-get-token))
  ;;; ```
  (define (csrf-get-token)
@@ -86,9 +86,9 @@
           submitted-token
           (string=? session-token submitted-token))))
 
- (define (extract-csrf-from-request request params)
+ (define (extract-csrf-from-request request)
    ;; Check form data first, then headers
-   (or (alist-ref (csrf-form-field) params equal?)
+   (or (alist-ref (csrf-form-field) (current-params) equal?)
        (let ((csrf-header (header-value 'x-csrf-token (request-headers request))))
          csrf-header)))
 
@@ -123,7 +123,7 @@
  ;;; (use-middleware! (csrf-middleware))
  ;;;
  ;;; ;; HTML form with CSRF token
- ;;; (get ("/form" params)
+ ;;; (get ("/form")
  ;;;      `(form (@ (method "POST") (action "/submit"))
  ;;;             (input (@ (type "hidden")
  ;;;                       (name ,(csrf-form-field))
@@ -131,7 +131,7 @@
  ;;;             (input (@ (type "submit") (value "Submit")))))
  ;;; ```
  (define (csrf-middleware)
-   (lambda (params next)
+   (lambda (next)
      (let* ((request (current-request))
 	    (method (request-method request)))
        (cond
@@ -140,7 +140,7 @@
 	 (next)]
 	;; Unsafe methods need valid CSRF token
 	[else
-	 (let ((submitted-token (extract-csrf-from-request request params)))
+	 (let ((submitted-token (extract-csrf-from-request request)))
            (if (csrf-token-valid? submitted-token)
                (next)
                (halt 'forbidden "CSRF token missing or invalid")))])))))

@@ -21,9 +21,11 @@
   chicken.string
   chicken.pretty-print
   srfi-13
-  intarweb ;; read-urlencoded-request-data
   schematra
+  schematra-body-parser
   chiccup)
+
+(use-middleware! (body-parser-middleware))
 
 (define (add-google-font  name #!optional (weight 400))
   `[link ((rel . "stylesheet")
@@ -42,21 +44,21 @@
 
 (use-middleware! (session-middleware "secret-key"))
 
-(get ("/" params)
+(get ("/")
      (let ((user (session-get "username")))
        (if user
            (ccup/html `[h1 ,(format "Welcome back, ~a!" user)])
            (redirect "/login"))))
 
-(get ("/login" params)
+(get ("/login")
      (ccup/html 
       `[form ((method . "POST") (action . "/login"))
         [input ((type . "text") (name . "username") 
                 (placeholder . "Username"))]
         [button "Login"]]))
 
-(post ("/login" params)
-      (let ((username (alist-ref "username" params equal?)))
+(post ("/login")
+      (let ((username (alist-ref "username" (current-params) equal?)))
         (session-set! "username" username)
         (redirect "/")))
 
@@ -67,13 +69,13 @@ EXAMPLE
 
 (define ex2 '(#<<EXAMPLE
 ;; Powerful middleware for cross-cutting concerns
-(define (auth-middleware params next)
-  (let ((token (cdr (assoc 'token params))))
+(define (auth-middleware next)
+  (let ((token (cdr (assoc 'token (current-params)))))
     (if (and token (valid-token? token))
         (next)  ; Continue to route handler
         '(unauthorized "Invalid token"))))
 
-(define (logging-middleware params next)
+(define (logging-middleware next)
   (let* ((request (current-request))
          (method (request-method request))
          (path (uri-path (request-uri request))))
@@ -84,7 +86,7 @@ EXAMPLE
 (use-middleware! auth-middleware)
 
 ;; Now all routes are logged and require auth
-(get ("/api/users" params)
+(get ("/api/users")
      '(ok "{\"users\": [...]}" 
           ((content-type application/json))))
 EXAMPLE
@@ -104,7 +106,7 @@ EXAMPLE
       ((onclick . ,(format "deleteTodo(~a)" (todo-id todo))))
       "Delete"]]])
 
-(get ("/todos" params)
+(get ("/todos")
      (let ((todos (get-user-todos (session-get "user-id"))))
        (ccup/html
         `[.container.mx-auto.p-6
@@ -115,9 +117,10 @@ EXAMPLE
 
 (define ex4 '(#<<EXAMPLE
 ;; JSON APIs made effortless
-(post ("/api/users" params)
-      (let ((name (alist-ref "name" params equal?))
-            (email (alist-ref "email" params equal?)))
+(post ("/api/users")
+      (let* ((params (current-params))
+	     (name (alist-ref "name" params equal?))
+             (email (alist-ref "email" params equal?)))
         (if (and name email (valid-email? email))
             (let ((user-id (create-user! name email)))
               (send-json-response
@@ -130,7 +133,7 @@ EXAMPLE
               '((error . "Invalid name or email")
                 (required . ("name" "email")))))))
 
-(get ("/api/users" params)
+(get ("/api/users")
      (let ((users (get-all-users)))
        (send-json-response 
          'ok 
@@ -274,7 +277,7 @@ EXAMPLE
        "✨ This playground uses real Schematra server-side rendering - what you see is what you get!"]]
      
      [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center.mt-12 "See More Examples"]
-     [.grid.grid-cols-1.lg:grid-cols-2.gap-4.sm:gap-6.lg:gap-8
+     [.space-y-6.sm:space-y-8
       ,(code-box "Complete Web App" ex1 "A full authentication flow with sessions, forms, and redirects - all in a few lines of clean Scheme code.")
       ,(code-box "Middleware Magic" ex2 "Compose powerful middleware for logging, authentication, and more. Each middleware is just a simple function.")
       ,(code-box "Chiccup Power" ex3 "HTML templates that look like your data structures. Map over lists, compose functions, and build UIs functionally.")
@@ -321,8 +324,8 @@ EXAMPLE
       \"Add New Todo\"]]]]")))
 
 ;; Playground endpoints
-(get ("/playground/:example" params)
-     (let* ((example-name (alist-ref "example" params equal?))
+(get ("/playground/:example")
+     (let* ((example-name (alist-ref "example" (current-params) equal?))
             (example-code (alist-ref (string->symbol example-name) playground-examples)))
        (ccup/html
         (if example-code
@@ -332,22 +335,23 @@ EXAMPLE
             `[div#chiccup-input.w-full.h-80.p-3.border.rounded.bg-red-50.text-red-600.flex.items-center.justify-center
               "Example not found"]))))
 
-(post ("/playground/render" params)
-      (let ((chiccup-code (alist-ref 'chiccup params)))
+(post ("/playground/render")
+      ;; got the 'chiccup param from the body, using the body-parser middleware
+      (let ((chiccup-code (alist-ref 'chiccup (current-params))))
         (if chiccup-code
             (let ((cleaned-code (string-trim chiccup-code)))
               (condition-case
-                  (ccup/html (with-input-from-string cleaned-code read))
-                (e () (ccup/html 
-                       `[.text-red-600.p-4.bg-red-50.rounded.border.border-red-200
-                         [h4.font-bold "Syntax Error"]
-                         [p "Invalid Chiccup syntax. Please check your brackets and formatting."]]))))
+               (ccup/html (with-input-from-string cleaned-code read))
+               (e () (ccup/html 
+                      `[.text-red-600.p-4.bg-red-50.rounded.border.border-red-200
+                        [h4.font-bold "Syntax Error"]
+                        [p "Invalid Chiccup syntax. Please check your brackets and formatting."]]))))
             (ccup/html `[p "No code provided"]))))
 
-(get ("/" params)
+(get ("/")
      (ccup/html (layout landing-page)))
 
-(get ("/api" _)
+(get ("/api")
      (redirect "https://github.com/schematra/schematra"))
 
 (schematra-install)

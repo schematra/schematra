@@ -175,8 +175,8 @@
       (let* ((provider-name (alist-ref 'name provider))
 	     (callback-path (string-append (auth-base-url) "/auth/" provider-name "/callback"))
 	     (start-oauth-path (string-append "/auth/" provider-name)))
-	(get (callback-path params) (oauthtoothy-callback-handler provider success-redirect params))
-	(get (start-oauth-path params)
+	(get (callback-path) (oauthtoothy-callback-handler provider success-redirect))
+	(get (start-oauth-path)
 	     (parameterize ((form-urlencoded-separator "&"))
 	       (let ((redirect-url (update-uri (uri-reference (alist-ref 'auth-url provider))
 					       query: `((client_id . ,(alist-ref 'client-id provider))
@@ -186,7 +186,7 @@
 		 (redirect (uri->string redirect-url)))))))
     providers)
 
-   (lambda (params next)
+   (lambda (next)
      ;; should check what state of the auth cycle we're in, then
      ;; either pass or do something else
      (let* ((user-id (session-get "user-id"))
@@ -200,8 +200,9 @@
 					`((authenticated? . #f)))))
 	 (next)))))
 
- (define (oauthtoothy-callback-handler provider success-redirect params)
-   (let* ((code            (alist-ref 'code params))
+ (define (oauthtoothy-callback-handler provider success-redirect)
+   (let* ((params          (current-params))
+	  (code            (alist-ref 'code params))
 	  (token           (exchange-code-for-token code provider))
 	  (user-info       (get-user-info token provider))
 	  (normalized-user ((alist-ref 'user-info-parser provider) user-info))

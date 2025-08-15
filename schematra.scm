@@ -24,6 +24,7 @@
   get post put
   sse write-sse-data
   current-body
+  current-params
   static
   add-resource! ;; used by the verb-routing macros
   halt redirect
@@ -84,13 +85,9 @@
  ;;; is automatically registered for the root path ("/") when the route trees
  ;;; are initialized.
  ;;; 
- ;;; ### Parameters
- ;;;   - `_request`: the HTTP request object (ignored by default handler)
- ;;;   - `params`: optional parameter alist (ignored by default handler)
- ;;; 
  ;;; ### Returns
  ;;;   A string containing the default welcome message
- (define (schematra-default-handler params)
+ (define (schematra-default-handler)
    "Welcome to Schematra, Sinatra's weird friend.")
 
  ;;; Log an error message to the error log
@@ -238,8 +235,8 @@
              (verb-symbol (string->symbol (string-upcase (symbol->string verb-name)))))
         `(define-syntax ,verb-name
            (syntax-rules ()
-             ((_ (path params) body ...)
-              (let ((handler (lambda (params) body ...)))
+             ((_ (path) body ...)
+              (let ((handler (lambda () body ...)))
                 (add-resource! path ',verb-symbol handler)))))))))
 
  ;;; Register a GET route handler
@@ -249,14 +246,11 @@
  ;;;
  ;;; ### Parameters
  ;;;   - `path`: string - URL path pattern (e.g., "/users", "/api/posts/:id", "/users/:user-id/posts/:post-id")
- ;;;   - `params`: symbol - Parameters parameter name (typically 'params')
  ;;;   - `body`: expressions - Route handler body that processes the request
  ;;;
  ;;; ### Handler Parameters
- ;;; The route handler receives one parameter:
- ;;;   - `params`: association list containing both path parameters and query parameters
  ;;;
- ;;; The params argument contains two types of parameters:
+ ;;; You can get the params by referring the `current-params` parameter, which contains two types of parameters:
  ;;; 1. **Path Parameters** (string keys): URL segments starting with ':' become parameters
  ;;;    - Route "/users/:id" matches "/users/123" 
  ;;;    - Contributes `'(("id" . "123"))` to params
@@ -276,17 +270,18 @@
  ;;; ### Examples
  ;;; ```scheme
  ;;; ;;; Simple static route
- ;;; (get ("/hello" params) "Hello, World!")
+ ;;; (get ("/hello") "Hello, World!")
  ;;;
  ;;; ;;; Route with parameters
- ;;; (get ("/users/:id" params)
- ;;;      (let ((user-id (alist-ref "id" params equal?)))
+ ;;; (get ("/users/:id")
+ ;;;      (let ((user-id (alist-ref "id" (current-params) equal?)))
  ;;;        (format "User ID: ~A" user-id)))
  ;;;
  ;;; ;;; Route with multiple parameters
- ;;; (get ("/users/:user-id/posts/:post-id" params)
- ;;;      (let ((user-id (alist-ref "user-id" params equal?))
- ;;;            (post-id (alist-ref "post-id" params equal?)))
+ ;;; (get ("/users/:user-id/posts/:post-id")
+ ;;;      (let* ((params (current-params)
+ ;;;             (user-id (alist-ref "user-id" params equal?))
+ ;;;             (post-id (alist-ref "post-id" params equal?)))
  ;;;        (format "User ~A, Post ~A" user-id post-id)))
  ;;; ```
  (define-verb get)
@@ -298,7 +293,6 @@
  ;;;
  ;;; ### Parameters
  ;;;   - `path`: string - URL path pattern (e.g., "/users", "/api/posts", "/users/:id")
- ;;;   - `params`: symbol - Parameters parameter name (typically 'params')
  ;;;   - `body`: expressions - Route handler body that processes the request
  ;;;
  ;;; ### Handler Parameters
@@ -317,13 +311,7 @@
  ;;; ### Parameters
  ;;;   - `path`: string - URL path for the SSE endpoint (e.g., "/events", "/chat/:room")
  ;;;   - `req`: symbol - Request parameter name (typically 'req')
- ;;;   - `params`: symbol - Parameters parameter name (typically 'params')
  ;;;   - `body`: expressions - SSE handler body that manages the connection
- ;;;
- ;;; ### Handler Parameters
- ;;; The SSE handler receives the same parameters as regular route handlers:
- ;;;   - `req`: HTTP request object
- ;;;   - `params`: association list of path and query parameters
  ;;;
  ;;; Unlike regular handlers, SSE handlers typically run in a loop to continuously
  ;;; send data. The handler should call `write-sse-data` to send events to the client.
@@ -353,15 +341,15 @@
  ;;; ### Examples
  ;;; ```scheme
  ;;; ;;; Simple time server
- ;;; (sse ("/time" req params)
+ ;;; (sse ("/time" req)
  ;;;      (let loop ()
  ;;;        (write-sse-data (current-time-string) event: "time-update")
  ;;;        (thread-sleep! 1)
  ;;;        (loop)))
  ;;;
  ;;; ;;; Chat room with parameters
- ;;; (sse ("/chat/:room" req params)
- ;;;      (let ((room (alist-ref "room" params equal?)))
+ ;;; (sse ("/chat/:room" req)
+ ;;;      (let ((room (alist-ref "room" (current-params) equal?)))
  ;;;        (let loop ()
  ;;;          (let ((messages (get-room-messages room)))
  ;;;            (when (new-messages? messages)
@@ -370,7 +358,7 @@
  ;;;            (loop)))))
  ;;; ```
  (define (sse path handler)
-   (get (path params)
+   (get (path)
         (current-response
          (update-response (current-response)
                           headers:
@@ -379,7 +367,7 @@
                                               (connection keep-alive)
                                               (x-sse-handler #t)))))
         (write-logged-response)
-        (handler params)))
+        (handler)))
 
  ;;; Send data to an SSE client
  ;;;
@@ -590,8 +578,8 @@
  ;; ```
  (define (static path-prefix directory)
    (let ((route-pattern (string-append path-prefix "/*")))
-     (get (route-pattern params)
-          (let* ((file-path (alist-ref "*" params equal?))
+     (get (route-pattern)
+          (let* ((file-path (alist-ref "*" (current-params) equal?))
                  (full-path (make-pathname directory file-path)))
             ;; Security: prevent directory traversal
             (if (string-contains file-path "..")
@@ -765,13 +753,13 @@
  (define (use-middleware! middleware)
    (set! middleware-stack (append middleware-stack (list middleware))))
 
- (define (apply-middleware-stack params handler)
+ (define (apply-middleware-stack handler)
    (let loop ((middlewares middleware-stack))
      (if (null? middlewares)
-         (handler params)
+         (handler)
          (let ((middleware (car middlewares))
                (remaining  (cdr middlewares)))
-           (middleware params (lambda () (loop remaining)))))))
+           (middleware (lambda () (loop remaining)))))))
 
  (handle-exception
   (lambda (exn chain)
@@ -784,6 +772,8 @@
           (send-status 'internal-server-error (build-error-message exn chain))))))
 
  (define current-body (make-parameter #f))
+
+ (define current-params (make-parameter '()))
 
  ;; from spiffy.scm
  (define (call-with-input-file* file proc)
@@ -802,9 +792,7 @@
           (uri (request-uri request))
           (normalized-path (normalize-path (uri-path uri)))
           (route-handlers (hash-table-ref/default resources-tree-for-verb method #f))
-          (resource (and route-handlers (find-resource normalized-path route-handlers)))
-          ;; local param that will get updated later
-          (current-params (make-parameter '())))
+          (resource (and route-handlers (find-resource normalized-path route-handlers))))
      (if resource
          (parameterize ((request-cookies (alist->hash-table raw-cookies))
                         (response-cookies (make-hash-table))
@@ -813,17 +801,9 @@
            (let* ((handler (car resource))
                   (route-params (cadr resource)))
              (current-params (append route-params (uri-query uri)))
-             ;; if this is a post request and there's data & url-form
-             ;; encoded, parse the body
-             (when (and (request-has-message-body? request)
-                        (eq? 'application/x-www-form-urlencoded
-                             (header-value 'content-type headers)))
-               (current-params (append (read-urlencoded-request-data request) (current-params))))
              ;; this condition-case is here to handle halts that might happen mid-routing
              (condition-case
-                 ;; TODO: maybe remove params as an argument, let
-                 ;; middleware use params as parameter
-                 (let* ((response-tuple (apply-middleware-stack (current-params) handler))
+                 (let* ((response-tuple (apply-middleware-stack handler))
                         (orig-status (if (list? response-tuple) (car response-tuple) #f))
                         (old-headers (response-headers (current-response)))
                         (new-headers (intarweb:headers (cookies->alist (response-cookies))

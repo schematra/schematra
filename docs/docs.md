@@ -43,8 +43,8 @@ Schematra is perfect for:
 (import schematra chiccup)
 
 ;; Define routes
-(get ("/path" params) (ccup/html `[h1 "Hello"]))
-(post ("/submit" params) "Form submitted!")
+(get ("/path") (ccup/html `[h1 "Hello"]))
+(post ("/submit") "Form submitted!")
 
 ;; Start server
 (schematra-install)
@@ -54,17 +54,17 @@ Schematra is perfect for:
 ### Common Route Patterns
 ```scheme
 ;; Simple routes
-(get ("/" params) "Home page")
-(get ("/about" params) (ccup/html `[h1 "About Us"]))
+(get ("/") "Home page")
+(get ("/about") (ccup/html `[h1 "About Us"]))
 
 ;; URL parameters
-(get ("/user/:id" params) 
-     (let ((id (cdr (assoc "id" params))))
+(get ("/user/:id") 
+     (let ((id (alist-ref "id" (current-params) equal?)))
        (ccup/html `[h1 ,(string-append "User " id)])))
 
 ;; Query parameters
-(get ("/search" params)
-     (let ((q (cdr (assoc 'q params))))
+(get ("/search")
+     (let ((q (alist-ref 'q (current-params))))
        (if q (format "Searching for: ~A" q) "No query")))
 ```
 
@@ -160,7 +160,7 @@ Create a file called `hello.scm`:
 ```scheme
 (import schematra chiccup)
 
-(get ("/" params)
+(get ("/")
      (ccup/html
       `[html
         [head [title "My First App"]]
@@ -184,19 +184,19 @@ Visit `http://localhost:8080` to see your app!
 Schematra uses a simple routing system inspired by Sinatra:
 
 ```scheme
-(get ("/path" params) 
+(get ("/path") 
      ;; handle GET request
      )
 
-(post ("/submit" params)
+(post ("/submit")
       ;; handle POST request
       )
 
-(put ("/update/:id" params)
+(put ("/update/:id")
      ;; handle PUT request with parameter
      )
 
-(delete ("/remove/:id" params)
+(delete ("/remove/:id")
         ;; handle DELETE request
         )
 ```
@@ -204,22 +204,22 @@ Schematra uses a simple routing system inspired by Sinatra:
 ### URL Parameters
 
 Extract parameters from URLs using the `:param` syntax. URL parameters
-are added to the `params` argument as string keys:
+can be accessed using `(current-params)` with string keys:
 
 ```scheme
-(get ("/user/:name" params)
-     (let ((name (cdr (assoc "name" params))))
+(get ("/user/:name")
+     (let ((name (alist-ref "name" (current-params) equal?)))
        (ccup/html `[h1 ,(string-append "Hello, " name "!")])))
 ```
 
 ### Query Parameters
 
-Access query parameters through the `params` association list, using
+Access query parameters through `(current-params)`, using
 symbol keys:
 
 ```scheme
-(get ("/search" params)
-     (let ((query (cdr (assoc 'q params))))
+(get ("/search")
+     (let ((query (alist-ref 'q (current-params))))
        (if query
            (ccup/html `[p ,(string-append "Searching for: " query)])
            (ccup/html `[p "No search query provided"]))))
@@ -310,9 +310,9 @@ Install middleware using the `use-middleware!` function:
 Middleware functions have the following signature:
 
 ```scheme
-(define (my-middleware params next)
-  ;; Process request/params before handler
-  (display params)
+(define (my-middleware next)
+  ;; Process request before handler
+  (display (current-params))
   (let ((response (next)))  ; Call next middleware or handler
     ;; Process response-tuple after handler
     response))
@@ -320,15 +320,16 @@ Middleware functions have the following signature:
 
 ### Middleware Parameters
 
-- `params`: The route and query parameters alist
 - `next`: A thunk (zero-argument function) that calls the next middleware in the chain or the final route handler
+
+Middleware can access request parameters using `(current-params)` and modify them using `(current-params new-params)` to affect the parameters seen by subsequent middleware and route handlers.
 
 ### Middleware Examples
 
 **Simple Logging Middleware**
 
 ```scheme
-(define (logging-middleware params next)
+(define (logging-middleware next)
   (let* ((request (current-request))
          (method (request-method request))
          (uri (request-uri request))
@@ -349,13 +350,87 @@ Middleware functions have the following signature:
        (string=? (symbol->string (get-value (car header))) "bearer")
        (string=? (symbol->string (caar (get-params (car header)))) "secret")))
 
-(define (auth-middleware params next)
+(define (auth-middleware next)
   (let ((auth-header (header-contents 'authorization (request-headers (current-request)))))
     (if (and auth-header (valid-token? auth-header))
         (next)  ; Continue to next middleware or route
         '(unauthorized "You don't belong here"))))  ; Return error response
 
 (use-middleware! auth-middleware)
+```
+
+### Body Parser Middleware
+
+The body parser middleware automatically parses form-encoded request bodies and makes form data available through `(current-params)`. This is essential for handling HTML forms and POST requests with form data.
+
+#### Installation and Usage
+
+```scheme
+(import schematra-body-parser)
+
+;; Install body parser middleware
+(use-middleware! (body-parser-middleware))
+```
+
+#### How It Works
+
+The middleware automatically:
+- Detects requests with `Content-Type: application/x-www-form-urlencoded`
+- Parses the request body into key-value pairs
+- Adds the parsed form data to the current parameters alist
+- Form field keys become **symbol keys** in the parameters
+
+#### Example Usage
+
+```scheme
+(import schematra schematra-body-parser chiccup)
+
+;; Install the middleware
+(use-middleware! (body-parser-middleware))
+
+;; HTML form
+(get ("/login")
+     (ccup/html
+      `[html
+        [head [title "Login"]]
+        [body
+         [form (("method" . "post") ("action" . "/login"))
+          [input (("type" . "text") ("name" . "username") ("placeholder" . "Username"))]
+          [input (("type" . "password") ("name" . "password") ("placeholder" . "Password"))]
+          [button (("type" . "submit")) "Login"]]]]))
+
+;; Form handler - access form data via current-params
+(post ("/login")
+      (let ((username (alist-ref 'username (current-params)))  ; Symbol key
+            (password (alist-ref 'password (current-params))))  ; Symbol key
+        (if (valid-credentials? username password)
+            (ccup/html `[p "Login successful!"])
+            (ccup/html `[p "Invalid credentials"]))))
+
+;; Mixed parameters example - URL params + form data
+(post ("/users/:id/update")
+      (let ((user-id (alist-ref "id" (current-params) equal?))      ; String key (URL param)
+            (email   (alist-ref 'email (current-params)))          ; Symbol key (form data)
+            (name    (alist-ref 'name (current-params))))          ; Symbol key (form data)
+        (update-user! user-id name email)
+        (ccup/html `[p "User updated successfully"])))
+```
+
+#### Parameter Key Types
+
+Remember the different key types when accessing parameters:
+- **URL parameters**: String keys (e.g., `"id"`, `"user-id"`)
+- **Query parameters**: Symbol keys (e.g., `'search`, `'limit`) 
+- **Form data**: Symbol keys (e.g., `'username`, `'email`)
+
+```scheme
+;; For request: POST /users/123/edit?debug=true with form data: name=John&email=john@example.com
+(let ((user-id (alist-ref "id" (current-params) equal?))     ; "123" (URL param)
+      (debug   (alist-ref 'debug (current-params)))          ; "true" (query param)
+      (name    (alist-ref 'name (current-params)))           ; "John" (form data)
+      (email   (alist-ref 'email (current-params))))         ; "john@example.com" (form data)
+  ;; Handle the request...
+  )
 ```
 
 ### Middleware Execution Order
@@ -384,7 +459,7 @@ Route handlers can return responses in two formats:
 Return a string directly for a 200 OK response with that string as the body:
 
 ```scheme
-(get ("/hello" params) "Hello, World!")
+(get ("/hello") "Hello, World!")
 ```
 
 **2. Response Tuple**
@@ -392,11 +467,11 @@ Return a list in the format `(status body [headers])` for full control:
 
 ```scheme
 ;; Status and body only
-(get ("/api/user" params) 
+(get ("/api/user") 
      '(created "User created successfully"))
 
 ;; With custom headers
-(get ("/api/data" params)
+(get ("/api/data")
      '(ok "{\"message\": \"success\"}" 
           ((content-type application/json))
            (cache-control no-cache))))
@@ -419,17 +494,34 @@ Headers should be provided in the way they're expected by the [headers function]
   (cache-control (max-age . 3600)))
 ```
 
-#### `(get (route params) body ...)`
+#### `(get (route) body ...)`
 Define a GET route handler.
 
-#### `(post (route params) body ...)`
+#### `(post (route) body ...)`
 Define a POST route handler.
 
-#### `(put (route params) body ...)`
+#### `(put (route) body ...)`
 Define a PUT route handler.
 
-#### `(delete (route params) body ...)`
+#### `(delete (route) body ...)`
 Define a DELETE route handler.
+
+#### `(current-params)`
+Returns an association list containing the current request parameters. This includes:
+- **Path parameters** (string keys): URL segments starting with ':' become parameters
+- **Query parameters** (symbol keys): URL query string parameters
+
+Example:
+```scheme
+;; For route /users/:id and request /users/123?format=json
+(current-params) ; => '(("id" . "123") (format . "json"))
+
+;; Access path parameter
+(alist-ref "id" (current-params) equal?) ; => "123"
+
+;; Access query parameter  
+(alist-ref 'format (current-params))    ; => "json"
+```
 
 #### `(halt status [body] [headers])`
 Immediately stop request processing and send an HTTP response.
@@ -446,8 +538,8 @@ This function halts the current handler execution and sends a response with the 
       '((content-type application/json)))
 
 ;; Authentication check
-(get ("/admin" params)
-     (unless (authenticated? params)
+(get ("/admin")
+     (unless (authenticated? (current-params))
        (halt 'unauthorized "Access denied"))
      "Admin dashboard")
 ```
@@ -465,8 +557,8 @@ Sends an HTTP redirect response with the Location header set. The default status
 (redirect "/new-location" 'moved-permanently)
 
 ;; After form submission (prevents resubmission)
-(post ("/submit" params)
-      (process-form params)
+(post ("/submit")
+      (process-form (current-params))
       (redirect "/success" 'see-other))
 ```
 
@@ -477,19 +569,19 @@ Automatically serializes Scheme data structures to JSON and sets the appropriate
 
 ```scheme
 ;; Simple JSON response
-(get ("/api/status" params)
+(get ("/api/status")
      (send-json-response '((status . "healthy") (version . "1.0"))))
 
 ;; Custom status code
-(post ("/api/users" params)
-      (let ((user (create-user! params)))
+(post ("/api/users")
+      (let ((user (create-user! (current-params))))
         (send-json-response
           `((id . ,(user-id user)) (created . #t))
           'created)))
 
 ;; Error response
-(get ("/api/user/:id" params)
-     (let ((user (find-user (cdr (assoc "id" params)))))
+(get ("/api/user/:id")
+     (let ((user (find-user (alist-ref "id" (current-params) equal?))))
        (if user
            (send-json-response (user->alist user))
            (send-json-response
@@ -600,9 +692,9 @@ Clear all session data (useful for logout):
 (use-middleware! (session-middleware "my-secret-key-12345"))
 
 ;; Login route
-(post ("/login" params)
-      (let ((username (cdr (assoc "username" params)))
-            (password (cdr (assoc "password" params))))
+(post ("/login")
+      (let ((username (alist-ref "username" (current-params) equal?))
+            (password (alist-ref "password" (current-params) equal?)))
         (if (valid-credentials? username password)
             (begin
               (session-set! "user-id" (get-user-id username))
@@ -611,14 +703,14 @@ Clear all session data (useful for logout):
             (ccup/html `[p "Invalid credentials"]))))
 
 ;; Protected route
-(get ("/dashboard" params)
+(get ("/dashboard")
      (let ((username (session-get "username")))
        (if username
            (ccup/html `[h1 ,(string-append "Welcome, " username "!")])
            (redirect "/login"))))
 
 ;; Logout route
-(post ("/logout" params)
+(post ("/logout")
       (session-destroy!)
       (redirect "/"))
 ```

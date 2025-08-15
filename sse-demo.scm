@@ -1,12 +1,16 @@
 (import
- schematra
- chiccup
  srfi-18        ;; threads
  chicken.string ;; conc
  intarweb       ;; read-urlencoded-request-data
  spiffy         ;; current-response?
  format
+ schematra
+ schematra-body-parser
+ chiccup
  )
+
+;; used in the post
+(use-middleware! (body-parser-middleware))
 
 (define broadcast-mutex (make-mutex))
 (define broadcast-condition (make-condition-variable))
@@ -37,7 +41,7 @@
 ;; You should be able to chat between the different tabs/windows.
 ;; By default spiffy allows up to 1024 simultaneous connections. You're using one on each SSE route.
 ;; To change the amount of max connections you can use the parameter `max-connections` (see: https://wiki.call-cc.org/eggref/5/spiffy#configuration-parameters)
-(get ("/" req params)
+(get ("/")
      (ccup/html
       `[html
         [head
@@ -57,9 +61,8 @@
               {"hx-swap" . "beforeend"})]]
            ,(send-form)]]]]))
 
-(post ("/send" req params)
-      (let* ((body-params (read-urlencoded-request-data req))
-             (msg (alist-ref 'message body-params)))
+(post ("/send")
+      (let ((msg (alist-ref 'message (current-params))))
         (when msg (broadcast-message! msg))
         ""))
 
@@ -69,7 +72,7 @@
      [span.text-gray-800 ,msg]]))
 
 (sse "/chatroom"
-     (lambda (req params)
+     (lambda ()
        (let ((last-seen-id 0))
          (let loop ()
            (mutex-lock! broadcast-mutex)

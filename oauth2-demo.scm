@@ -41,7 +41,7 @@
   save-proc: save-user
   load-proc: load-user))
 
-(get ("/profile" req params)
+(get ("/profile")
      (let ((auth (current-auth)))
        (if (alist-ref 'authenticated? auth)
 	   (begin
@@ -49,7 +49,7 @@
 	   ;; trigger the auth sequence
 	   (redirect "/auth/google"))))
 
-(get ("/logout" req params)
+(get ("/logout")
      (session-destroy!)
      (redirect "/"))
 

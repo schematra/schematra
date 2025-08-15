@@ -139,19 +139,19 @@
  ;;; (use-middleware! (session-middleware "my-secret-key-12345"))
  ;;;
  ;;; ;; In route handlers, use session functions:
- ;;; (get ("/login" params)
+ ;;; (get ("/login")
  ;;;      (session-set! "user-id" "12345")
  ;;;      (session-set! "username" "alice")
  ;;;      "Logged in successfully")
  ;;;
- ;;; (get ("/profile" params)
+ ;;; (get ("/profile")
  ;;;      (let ((user-id (session-get "user-id")))
  ;;;        (if user-id
  ;;;            (format "Welcome user ~A" user-id)
  ;;;            "Please log in")))
  ;;; ```
  (define (session-middleware secret-key)
-   (lambda (params next)
+   (lambda (next)
      (let* ((session-cookie (cookie-ref (session-key)))
 	    (session-data (if session-cookie
 			      (deserialize-session session-cookie secret-key)
@@ -270,7 +270,7 @@
  ;;; ### Examples
  ;;; ```scheme
  ;;; ;; Complete logout - clear all session data
- ;;; (post ("/logout" params)
+ ;;; (post ("/logout")
  ;;;       (session-destroy!)
  ;;;       (redirect "/"))
  ;;; ```

@@ -41,14 +41,14 @@ chicken-install
 
 (use-middleware! (session-middleware "secret-key"))
 
-(get ("/" params)
+(get ("/")
      (let ((user (session-get "username")))
        (if user
            (ccup/html `[h1 ,(format "Welcome back, ~a!" user)])
            (redirect "/login"))))
 
-(post ("/login" params)
-      (let ((username (cdr (assoc "username" params))))
+(post ("/login")
+      (let ((username (alist-ref 'username (current-params))))
         (session-set! "username" username)
         (redirect "/")))
 
