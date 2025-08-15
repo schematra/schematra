@@ -20,6 +20,7 @@
   chicken.port
   chicken.string
   chicken.pretty-print
+  chicken.process-context
   srfi-13
   schematra
   schematra-session
@@ -360,5 +361,7 @@ EXAMPLE
      (redirect "https://github.com/schematra/schematra"))
 
 (schematra-install)
-(schematra-start development?: #t nrepl?: #f)
+(let* ((environment (or (get-environment-variable "SCHEMATRA_ENV") "production"))
+       (dev-env?    (string=? environment "development")))
+  (schematra-start development?: dev-env? nrepl?: #f))
 
