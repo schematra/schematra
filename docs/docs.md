@@ -4,13 +4,127 @@ A modern web framework for Scheme that combines simplicity with power.
 
 ## Table of Contents
 
+- [What is Schematra?](#what-is-schematra)
+- [Quick Reference](#quick-reference)
 - [Getting Started](#getting-started)
 - [Core Concepts](#core-concepts)
 - [Chiccup Templating](#chiccup-templating)
+- [Middleware System](#middleware-system)
 - [API Reference](#api-reference)
 - [Advanced Topics](#advanced-topics)
 - [Examples & Recipes](#examples--recipes)
 - [Contributing](#contributing)
+
+## What is Schematra?
+
+Schematra is a lightweight, expressive web framework for CHICKEN Scheme inspired by Sinatra. It brings the elegance of Lisp to web development with a focus on simplicity and developer productivity.
+
+### Key Features
+
+- **Minimal boilerplate** - Get a web server running with just a few lines of code
+- **Chiccup templating** - Write HTML using Lisp syntax with built-in CSS class support
+- **Flexible routing** - Sinatra-style route definitions with URL parameters
+- **Built-in sessions** - Cookie-based session management out of the box
+- **Middleware support** - Extensible request/response processing pipeline
+- **Static file serving** - Serve CSS, JavaScript, and assets effortlessly
+
+### Who is it for?
+
+Schematra is perfect for:
+- **Scheme enthusiasts** who want to build web applications in their favorite language
+- **Lisp developers** looking for a modern web framework with functional programming principles
+- **Rapid prototyping** when you need to quickly spin up web services or small applications
+- **Educational projects** teaching web development concepts in a functional language
+
+## Quick Reference
+
+### Basic App Structure
+```scheme
+(import schematra chiccup)
+
+;; Define routes
+(get ("/path" params) (ccup/html `[h1 "Hello"]))
+(post ("/submit" params) "Form submitted!")
+
+;; Start server
+(schematra-install)
+(schematra-start)
+```
+
+### Common Route Patterns
+```scheme
+;; Simple routes
+(get ("/" params) "Home page")
+(get ("/about" params) (ccup/html `[h1 "About Us"]))
+
+;; URL parameters
+(get ("/user/:id" params) 
+     (let ((id (cdr (assoc "id" params))))
+       (ccup/html `[h1 ,(string-append "User " id)])))
+
+;; Query parameters
+(get ("/search" params)
+     (let ((q (cdr (assoc 'q params))))
+       (if q (format "Searching for: ~A" q) "No query")))
+```
+
+### Response Types
+```scheme
+;; String response (200 OK)
+"Simple text response"
+
+;; Status + body
+'(created "Resource created")
+
+;; Status + body + headers
+'(ok "{\"status\":\"success\"}" ((content-type application/json)))
+
+;; Redirects
+(redirect "/login")
+(redirect "/new-url" 'moved-permanently)
+
+;; Early exit
+(halt 'not-found "Page not found")
+```
+
+### Chiccup HTML Basics
+```scheme
+;; Basic elements
+`[h1 "Title"]
+`[p "Paragraph text"]
+
+;; CSS classes and IDs
+`[.container.mx-auto#main "Content"]
+`[button.btn.btn-primary "Click me"]
+
+;; Attributes
+`[a ((href . "/page")) "Link"]
+`[input ((type . "text") (name . "username"))]
+
+;; Dynamic content
+`[ul ,@(map (lambda (item) `[li ,item]) items)]
+
+;; Raw HTML (unescaped)
+`[div (raw "<em>emphasized</em>")]
+```
+
+### Sessions
+```scheme
+(import sessions)
+(use-middleware! (session-middleware "secret-key"))
+
+;; Get/set session data
+(session-get "user-id")
+(session-set! "user-id" "12345")
+(session-delete! "key")
+(session-destroy!)
+```
+
+### Static Files
+```scheme
+;; Serve files from ./public at /assets
+(static "/assets" "./public")
+```
 
 ## Getting Started
 
@@ -179,6 +293,83 @@ If you need to dynamically build an id, just pass it as an attribute.
 (let ((items '("Apple" "Banana" "Cherry")))
   `[ul.list-disc.ml-4
     ,@(map (lambda (item) `[li ,item]) items)])
+```
+
+## Middleware System
+
+Schematra supports middleware functions that can process requests before they reach your route handlers. Middleware is useful for cross-cutting concerns like authentication, logging, request parsing, and session management.
+
+### Using Middleware
+
+Install middleware using the `use-middleware!` function:
+
+```scheme
+(use-middleware! my-middleware-function)
+```
+
+Middleware functions have the following signature:
+
+```scheme
+(define (my-middleware params next)
+  ;; Process request/params before handler
+  (display params)
+  (let ((response (next)))  ; Call next middleware or handler
+    ;; Process response-tuple after handler
+    response))
+```
+
+### Middleware Parameters
+
+- `params`: The route and query parameters alist
+- `next`: A thunk (zero-argument function) that calls the next middleware in the chain or the final route handler
+
+### Middleware Examples
+
+**Simple Logging Middleware**
+
+```scheme
+(define (logging-middleware params next)
+  (let* ((request (current-request))
+         (method (request-method request))
+         (uri (request-uri request))
+         (path (uri-path uri)))
+    (log-dbg "~A ~A" method (uri->string uri))
+    (next)))
+
+(use-middleware! logging-middleware)
+```
+
+**Authentication Middleware**
+
+```scheme
+(define (valid-token? header)
+  (and (list? header)
+       (= 1 (length header))
+       (vector? (car header))
+       (string=? (symbol->string (get-value (car header))) "bearer")
+       (string=? (symbol->string (caar (get-params (car header)))) "secret")))
+
+(define (auth-middleware params next)
+  (let ((auth-header (header-contents 'authorization (request-headers (current-request)))))
+    (if (and auth-header (valid-token? auth-header))
+        (next)  ; Continue to next middleware or route
+        '(unauthorized "You don't belong here"))))  ; Return error response
+
+(use-middleware! auth-middleware)
+```
+
+### Middleware Execution Order
+
+Middleware is executed in the order it's installed with `use-middleware!`. The first middleware installed runs first on the request, and last on the response:
+
+```scheme
+(use-middleware! middleware-a)  ; Runs first
+(use-middleware! middleware-b)  ; Runs second
+(use-middleware! middleware-c)  ; Runs third
+
+;; Execution flow:
+;; Request: middleware-a -> middleware-b -> middleware-c -> route-handler
+;; Response: route-handler -> middleware-c -> middleware-b -> middleware-a
 ```
 
 ## API Reference
@@ -403,83 +594,6 @@ Clear all session data (useful for logout):
 (post ("/logout" params)
       (session-destroy!)
       (redirect "/"))
-```
-
-### Middleware System
-
-Schematra supports middleware functions that can process requests before they reach your route handlers. Middleware is useful for cross-cutting concerns like authentication, logging, request parsing, and session management.
-
-#### Using Middleware
-
-Install middleware using the `use-middleware!` function:
-
-```scheme
-(use-middleware! my-middleware-function)
-```
-
-Middleware functions have the following signature:
-
-```scheme
-(define (my-middleware params next)
-  ;; Process request/params before handler
-  (display params)
-  (let ((response (next)))  ; Call next middleware or handler
-    ;; Process response-tuple after handler
-    response))
-```
-
-#### Middleware Parameters
-
-- `params`: The route and query parameters alist
-- `next`: A thunk (zero-argument function) that calls the next middleware in the chain or the final route handler
-
-#### Middleware Examples
-
-**Simple Logging Middleware**
-
-```scheme
-(define (logging-middleware params next)
-  (let* ((request (current-request))
-         (method (request-method request))
-         (uri (request-uri request))
-         (path (uri-path uri)))
-    (log-dbg "~A ~A" method (uri->string uri))
-    (next)))
-
-(use-middleware! logging-middleware)
-```
-
-**Authentication Middleware**
-
-```scheme
-(define (valid-token? header)
-  (and (list? header)
-       (= 1 (length header))
-       (vector? (car header))
-       (string=? (symbol->string (get-value (car header))) "bearer")
-       (string=? (symbol->string (caar (get-params (car header)))) "secret")))
-
-(define (auth-middleware params next)
-  (let ((auth-header (header-contents 'authorization (request-headers (current-request)))))
-    (if (and auth-header (valid-token? auth-header))
-        (next)  ; Continue to next middleware or route
-        '(unauthorized "You don't belong here"))))  ; Return error response
-
-(use-middleware! auth-middleware)
-```
-
-#### Middleware Execution Order
-
-Middleware is executed in the order it's installed with `use-middleware!`. The first middleware installed runs first on the request, and last on the response:
-
-```scheme
-(use-middleware! middleware-a)  ; Runs first
-(use-middleware! middleware-b)  ; Runs second
-(use-middleware! middleware-c)  ; Runs third
-
-;; Execution flow:
-;; Request: middleware-a -> middleware-b -> middleware-c -> route-handler
-;; Response: route-handler -> middleware-c -> middleware-b -> middleware-a
 ```
 
 ### Database Integration
