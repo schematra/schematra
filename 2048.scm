@@ -195,6 +195,3 @@
             (add-random-tile!))
 	  (session-set! "game-state" (game-grid))
           (ccup/html (render-grid)))))
-
-(schematra-install)
-(schematra-start development?: #t nrepl?: #f)
