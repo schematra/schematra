@@ -10,6 +10,7 @@ A modern web framework for Scheme that combines simplicity with power.
 - [Core Concepts](#core-concepts)
 - [Chiccup Templating](#chiccup-templating)
 - [Middleware System](#middleware-system)
+- [OAuth2 Authentication (Oauthtoothy)](#oauth2-authentication-oauthtoothy)
 - [API Reference](#api-reference)
 - [Advanced Topics](#advanced-topics)
 - [Examples & Recipes](#examples--recipes)
@@ -446,6 +447,336 @@ Middleware is executed in the order it's installed with `use-middleware!`. The f
 ;; Request: middleware-a -> middleware-b -> middleware-c -> route-handler
 ;; Response: route-handler -> middleware-c -> middleware-b -> middleware-a
 ```
+
+## OAuth2 Authentication (Oauthtoothy)
+
+Oauthtoothy is Schematra's OAuth2 authentication middleware that provides complete social login integration. It handles the entire OAuth2 flow automatically, from authorization redirects to user info retrieval, with built-in session management and user persistence.
+
+### Key Features
+
+- **Complete OAuth2 Flow**: Handles authorization, token exchange, and user info retrieval
+- **Multiple Provider Support**: Configure multiple OAuth2 providers (Google, GitHub, etc.)
+- **Automatic Route Registration**: Creates `/auth/{provider}` and `/auth/{provider}/callback` routes
+- **Session Integration**: Seamlessly integrates with Schematra's session system
+- **User Persistence**: Optional save/load procedures for user data storage
+- **Configurable Redirects**: Customize post-authentication redirect behavior
+
+### Installation and Setup
+
+```scheme
+(import schematra schematra-session oauthtoothy chiccup)
+
+;; Session middleware is required for Oauthtoothy
+(use-middleware! (session-middleware "your-secret-key"))
+
+;; Install OAuth2 middleware
+(use-middleware!
+ (oauthtoothy-middleware
+  (list (google-provider 
+         client-id: (get-environment-variable "GOOGLE_CLIENT_ID")
+         client-secret: (get-environment-variable "GOOGLE_CLIENT_SECRET")))
+  success-redirect: "/dashboard"
+  save-proc: save-user-to-db
+  load-proc: load-user-from-db))
+```
+
+### Core Functions
+
+#### `(oauthtoothy-middleware providers #!key success-redirect save-proc load-proc)`
+
+Creates OAuth2 authentication middleware that handles the complete authentication flow.
+
+**Parameters:**
+- `providers`: list - List of OAuth2 provider configurations
+- `success-redirect`: string - URL to redirect to after successful authentication (default: "/")
+- `save-proc`: procedure or #f - Function to save user data (default: #f for no persistence)
+- `load-proc`: procedure or #f - Function to load user data (default: #f for no persistence)
+
+**Registered Routes:**
+For each provider named "example", automatically creates:
+- `GET /auth/example` - Initiates OAuth2 flow, redirects to provider
+- `GET /auth/example/callback` - Handles OAuth2 callback from provider
+
+#### `(auth-base-url [url])`
+
+Parameter that defines the base URL for OAuth2 callback URLs.
+
+```scheme
+;; Get current base URL
+(auth-base-url) ; => "http://localhost:8080"
+
+;; Set base URL for production
+(auth-base-url "https://myapp.example.com")
+```
+
+#### `(current-auth)`
+
+Parameter containing the current user's authentication state.
+
+**Unauthenticated state:**
+```scheme
+'((authenticated? . #f))
+```
+
+**Authenticated state:**
+```scheme
+'((authenticated? . #t)
+  (user-id . "user123")
+  (name . "John Doe")
+  (email . "john@example.com")
+  ;; Additional fields from user-info-parser
+  )
+```
+
+### Provider Configuration
+
+Each provider is configured as an association list with these required keys:
+
+```scheme
+(define (custom-provider #!key client-id client-secret)
+  `((name . "custom")                    ; Unique provider identifier
+    (client-id . ,client-id)             ; OAuth2 client ID
+    (client-secret . ,client-secret)     ; OAuth2 client secret
+    (auth-url . "https://provider.com/oauth2/auth")        ; Authorization endpoint
+    (token-url . "https://provider.com/oauth2/token")      ; Token exchange endpoint
+    (user-info-url . "https://api.provider.com/user")     ; User info endpoint
+    (scopes . "profile email")           ; Space-separated scopes
+    (user-info-parser . ,parse-custom-user)))             ; User data normalizer
+```
+
+#### Required Provider Fields
+
+- **name**: Unique string identifier for the provider
+- **client-id**: OAuth2 client ID from the provider's developer console
+- **client-secret**: OAuth2 client secret from the provider's developer console
+- **auth-url**: Provider's OAuth2 authorization endpoint URL
+- **token-url**: Provider's OAuth2 token exchange endpoint URL
+- **user-info-url**: Provider's user information API endpoint URL
+- **scopes**: Space-separated list of OAuth2 scopes to request
+- **user-info-parser**: Function to normalize provider-specific user data
+
+#### User Info Parser
+
+The user-info-parser function normalizes provider-specific JSON responses into a standard format:
+
+```scheme
+(define (parse-google-user json-response)
+  `((id . ,(alist-ref 'id json-response))
+    (name . ,(alist-ref 'name json-response))
+    (email . ,(alist-ref 'email json-response))))
+
+(define (parse-github-user json-response)
+  `((id . ,(number->string (alist-ref 'id json-response)))
+    (name . ,(alist-ref 'name json-response))
+    (email . ,(alist-ref 'email json-response))
+    (username . ,(alist-ref 'login json-response))))
+```
+
+### Sample Providers
+
+#### Google Provider
+
+```scheme
+(define (google-provider #!key client-id client-secret)
+  `((name . "google")
+    (client-id . ,client-id)
+    (client-secret . ,client-secret)
+    (auth-url . "https://accounts.google.com/o/oauth2/auth")
+    (token-url . "https://oauth2.googleapis.com/token")
+    (user-info-url . "https://www.googleapis.com/oauth2/v2/userinfo")
+    (scopes . "profile email")
+    (user-info-parser . ,parse-google-user)))
+```
+
+**Setup Google OAuth2:**
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing project
+3. Enable the Google+ API
+4. Create OAuth2 credentials
+5. Add your callback URL: `{your-domain}/auth/google/callback`
+
+### User Persistence
+
+Oauthtoothy supports optional user data persistence through save and load procedures:
+
+```scheme
+;; In-memory storage (for testing/development)
+(define user-store (make-hash-table))
+
+(define (save-user user-id user-data)
+  (hash-table-set! user-store user-id user-data))
+
+(define (load-user user-id)
+  (hash-table-ref/default user-store user-id #f))
+```
+
+### Authentication Flow
+
+1. **User visits protected route** → redirected to `/auth/{provider}`
+2. **Authorization request** → user redirected to provider's login page
+3. **User authorizes** → provider redirects to `/auth/{provider}/callback?code=...`
+4. **Token exchange** → Oauthtoothy exchanges code for access token
+5. **User info retrieval** → Fetches user profile from provider API
+6. **Data normalization** → user-info-parser converts to standard format
+7. **Session storage** → User ID stored in session
+8. **Optional persistence** → save-proc called if provided
+9. **Success redirect** → User redirected to success-redirect URL
+
+### Complete Example
+
+```scheme
+(import schematra schematra-session oauthtoothy chiccup srfi-69)
+
+;; User storage
+(define user-store (make-hash-table))
+(define (save-user user-id user-data)
+  (hash-table-set! user-store user-id user-data))
+(define (load-user user-id)
+  (hash-table-ref/default user-store user-id #f))
+
+;; Google user data parser
+(define (parse-google-user json-response)
+  `((id . ,(alist-ref 'id json-response))
+    (name . ,(alist-ref 'name json-response))
+    (email . ,(alist-ref 'email json-response))))
+
+;; Provider configuration
+(define (google-provider #!key client-id client-secret)
+  `((name . "google")
+    (client-id . ,client-id)
+    (client-secret . ,client-secret)
+    (auth-url . "https://accounts.google.com/o/oauth2/auth")
+    (token-url . "https://oauth2.googleapis.com/token")
+    (user-info-url . "https://www.googleapis.com/oauth2/v2/userinfo")
+    (scopes . "profile email")
+    (user-info-parser . ,parse-google-user)))
+
+;; Install middleware
+(use-middleware! (session-middleware "secret-key"))
+(use-middleware!
+ (oauthtoothy-middleware
+  (list (google-provider
+         client-id: (get-environment-variable "GOOGLE_CLIENT_ID")
+         client-secret: (get-environment-variable "GOOGLE_CLIENT_SECRET")))
+  success-redirect: "/profile"
+  save-proc: save-user
+  load-proc: load-user))
+
+;; Protected route
+(get ("/profile")
+     (let ((auth (current-auth)))
+       (if (alist-ref 'authenticated? auth)
+           (ccup/html 
+            `[html
+              [head [title "Profile"]]
+              [body
+               [h1 ,(string-append "Welcome, " (alist-ref 'name auth))]
+               [p "Email: " ,(alist-ref 'email auth)]
+               [a ((href . "/logout")) "Logout"]]])
+           (redirect "/auth/google"))))
+
+;; Logout route
+(get ("/logout")
+     (session-destroy!)
+     (redirect "/"))
+
+;; Public landing page
+(get ("/")
+     (ccup/html
+      `[html
+        [head [title "My App"]]
+        [body
+         [h1 "Welcome to My App"]
+         [a ((href . "/profile")) "Login with Google"]]]))
+
+(schematra-install)
+(schematra-start)
+```
+
+### Configuration Parameters
+
+#### Setting Base URL
+
+Configure the base URL for OAuth2 callbacks (required for production):
+
+```scheme
+;; Development (default)
+(auth-base-url "http://localhost:8080")
+
+;; Production
+(auth-base-url "https://myapp.example.com")
+```
+
+### Route Protection Patterns
+
+#### Simple Authentication Check
+
+```scheme
+(get ("/dashboard")
+     (let ((auth (current-auth)))
+       (if (alist-ref 'authenticated? auth)
+           (ccup/html `[h1 "Dashboard Content"])
+           (redirect "/auth/google"))))
+```
+
+#### Authentication Middleware
+
+Create reusable authentication middleware:
+
+```scheme
+(define (require-auth next)
+  (let ((auth (current-auth)))
+    (if (alist-ref 'authenticated? auth)
+        (next)
+        (redirect "/auth/google"))))
+
+(use-middleware! require-auth)
+
+;; Now all routes require authentication
+(get ("/admin") (ccup/html `[h1 "Admin Panel"]))
+(get ("/settings") (ccup/html `[h1 "User Settings"]))
+```
+
+### Multiple Provider Setup
+
+```scheme
+;; Configure multiple OAuth2 providers
+(use-middleware!
+ (oauthtoothy-middleware
+  (list (google-provider 
+         client-id: (get-environment-variable "GOOGLE_CLIENT_ID")
+         client-secret: (get-environment-variable "GOOGLE_CLIENT_SECRET"))
+        (github-provider
+         client-id: (get-environment-variable "GITHUB_CLIENT_ID")
+         client-secret: (get-environment-variable "GITHUB_CLIENT_SECRET")))
+  success-redirect: "/dashboard"))
+
+;; Login page with multiple options
+(get ("/login")
+     (ccup/html
+      `[html
+        [head [title "Login"]]
+        [body
+         [h1 "Choose Login Method"]
+         [a ((href . "/auth/google")) "Login with Google"]
+         [a ((href . "/auth/github")) "Login with GitHub"]]]))
+```
+
+### Error Handling
+
+Oauthtoothy automatically handles common OAuth2 errors:
+
+- **Invalid authorization codes** → 502 Bad Gateway response
+- **Provider API failures** → 502 Bad Gateway response  
+- **JSON parsing errors** → 502 Bad Gateway response
+- **Missing user info** → Graceful fallback to unauthenticated state
+
+### Security Considerations
+
+- **HTTPS Required**: Use HTTPS in production for secure token transmission
+- **Secret Management**: Store client secrets in environment variables, never in code
+- **Callback URL Validation**: Ensure callback URLs are registered with providers
+- **Session Security**: Use strong secret keys for session middleware
 
 ## API Reference
 

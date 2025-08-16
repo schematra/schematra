@@ -147,12 +147,178 @@ EXAMPLE
 EXAMPLE
 ))
 
+(define ex5 '(#<<EXAMPLE
+;; OAuth2 authentication with Google
+(import schematra chiccup sessions oauthtoothy)
+
+;; Provider configuration
+(define (google-provider #!key client-id client-secret)
+  `((name . "google")
+    (client-id . ,client-id)
+    (client-secret . ,client-secret)
+    (auth-url . "https://accounts.google.com/o/oauth2/auth")
+    (token-url . "https://oauth2.googleapis.com/token")
+    (user-info-url . "https://www.googleapis.com/oauth2/v2/userinfo")
+    (scopes . "profile email")
+    (user-info-parser . parse-google-user)))
+
+;; Install middleware
+(use-middleware! (session-middleware "secret-key"))
+(use-middleware!
+ (oauthtoothy-middleware
+  (list (google-provider
+         client-id: (get-environment-variable "GOOGLE_CLIENT_ID")
+         client-secret: (get-environment-variable "GOOGLE_CLIENT_SECRET")))))
+
+;; Protected route
+(get ("/profile")
+     (let ((auth (current-auth)))
+       (if (alist-ref 'authenticated? auth)
+           (ccup/html `[h1 ,(string-append "Welcome, " 
+                                           (alist-ref 'name auth))])
+           (redirect "/auth/google"))))
+
+;; Logout
+(get ("/logout")
+     (session-destroy!)
+     (redirect "/"))
+EXAMPLE
+))
+
+(define express-comparison '(#<<EXPRESS
+// Express.js - 59 lines for basic auth app
+const express = require('express');
+const session = require('express-session');
+const bodyParser = require('body-parser');
+const path = require('path');
+
+const app = express();
+
+// Session middleware setup
+app.use(session({
+  secret: 'secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false }
+}));
+
+// Body parser middleware
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Authentication middleware
+function requireAuth(req, res, next) {
+  if (req.session.username) {
+    next();
+  } else {
+    res.redirect('/login');
+  }
+}
+
+// Routes
+app.get('/', requireAuth, (req, res) => {
+  res.send(`
+    <html>
+      <head><title>Dashboard</title></head>
+      <body>
+        <h1>Welcome back, ${req.session.username}!</h1>
+        <a href="/logout">Logout</a>
+      </body>
+    </html>
+  `);
+});
+
+app.get('/login', (req, res) => {
+  res.send(`
+    <html>
+      <head><title>Login</title></head>
+      <body>
+        <form method="POST" action="/login">
+          <input type="text" name="username" placeholder="Username" required>
+          <button type="submit">Login</button>
+        </form>
+      </body>
+    </html>
+  `);
+});
+
+app.post('/login', (req, res) => {
+  const username = req.body.username;
+  if (username) {
+    req.session.username = username;
+    res.redirect('/');
+  } else {
+    res.status(400).send('Username required');
+  }
+});
+
+app.get('/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/login');
+});
+
+app.listen(8080, () => {
+  console.log('Server running on http://localhost:8080');
+});
+EXPRESS
+))
+
+(define schematra-comparison '(#<<SCHEMATRA
+;; Schematra - 25 lines for the same functionality
+(import schematra schematra-session
+	schematra-body-parser chiccup)
+
+(use-middleware! (session-middleware "secret-key"))
+(use-middleware! (body-parser-middleware))
+
+(get ("/")
+     (if (session-get "username")
+         (ccup/html `[html [head [title "Dashboard"]]
+                           [body [h1 ,(format "Welcome back, ~a!" (session-get "username"))]
+                                 [a ((href . "/logout")) "Logout"]]])
+         (redirect "/login")))
+
+(get ("/login")
+     (ccup/html `[html [head [title "Login"]]
+                       [body [form ((method . "POST") (action . "/login"))
+                                   [input ((type . "text") (name . "username") (placeholder . "Username") (required . #t))]
+                                   [button ((type . "submit")) "Login"]]]]))
+
+(post ("/login")
+      (let ((username (alist-ref 'username (current-params))))
+	(if (not username) (halt 'bad-request "Username required"))
+        (session-set! "username" username)
+	(redirect "/")))
+
+(get ("/logout")
+     (session-destroy!)
+     (redirect "/login"))
+
+(schematra-install)
+(schematra-start)
+SCHEMATRA
+))
+
 (define (code-box title example subtext)
   `[.bg-white.p-4.sm:p-6.rounded-lg.shadow-sm.border.border-teal-100
     [h3.text-base.sm:text-lg.font-semibold.text-teal-900.mb-3.sm:mb-4 ,title]
     [pre.bg-teal-50.p-3.sm:p-4.rounded.text-xs.sm:text-sm.overflow-x-auto
      [code.language-scheme ,(car example)]]
     [p.text-sm.sm:text-base.text-teal-700.mt-2.sm:mt-3 ,subtext]])
+
+(define (comparison-box express-code schematra-code)
+  `[.bg-white.p-4.sm:p-6.rounded-lg.shadow-sm.border.border-teal-100
+    [h3.text-lg.sm:text-xl.font-semibold.text-teal-900.mb-4.text-center "Express.js vs Schematra: Same App, Different Complexity"]
+    [.grid.grid-cols-1.lg:grid-cols-2.gap-4
+     [div
+      [h4.text-sm.font-semibold.text-gray-700.mb-2.text-center "Express.js - 59 Lines"]
+      [pre.bg-gray-50.p-3.rounded.text-xs.h-96.overflow-y-auto
+       [code.language-javascript ,(car express-code)]]]
+     [div
+      [h4.text-sm.font-semibold.text-gray-700.mb-2.text-center "Schematra - 25 Lines"]
+      [pre.bg-gray-50.p-3.rounded.text-xs.h-96.overflow-y-auto
+       [code.language-scheme ,(car schematra-code)]]]]
+    [p.text-sm.text-teal-700.mt-4.text-center.italic
+     "Both apps provide identical functionality: sessions, authentication, form handling, and templating."]])
 
 (define (footer)
   `[footer.bg-teal-800.text-white.mt-12.sm:mt-20
@@ -166,7 +332,7 @@ EXAMPLE
        [h3.text-lg.font-semibold.mb-4 "Resources"]
        [ul.space-y-2
         [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "https://github.com/schematra/schematra/blob/main/docs/docs.md")) "Documentation"]]
-        [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "#examples")) "Examples"]]
+        [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "#see-more-examples")) "Examples"]]
         [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "/api")) "API Reference"]]
         [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "#community")) "Community"]]]]
       [div
@@ -228,17 +394,22 @@ EXAMPLE
      [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center "Stop Fighting Your Framework"]
      [.grid.grid-cols-1.md:grid-cols-2.gap-6.sm:gap-8.mb-8.sm:mb-12
       [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
-       [h3.text-lg.font-semibold.text-teal-900.mb-3 "🚀 Express in 50 Lines vs Schematra in 15"]
-       [p.text-teal-700 "What takes Express 50+ lines of boilerplate (sessions, middleware, auth) takes Schematra 15 lines of clean, readable Scheme. Zero magic, maximum clarity."]]
+       [h3.text-lg.font-semibold.text-teal-900.mb-3 "🚀 Less Code, More Results"]
+       [p.text-teal-700 "What takes Express 50+ lines of boilerplate (sessions, middleware, auth) takes Schematra less than 20 lines of clean, readable Scheme. Zero magic, maximum clarity."]]
       [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
        [h3.text-lg.font-semibold.text-teal-900.mb-3 "⚡ Templates That Don't Lie"]
        [p.text-teal-700 "Forget Handlebars, Jinja, and ERB. Your HTML structure is your data structure. No context switching, no template syntax to learn, no surprises."]]
       [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
        [h3.text-lg.font-semibold.text-teal-900.mb-3 "🎯 Middleware Done Right"]
-       [p.text-teal-700 "Flask decorators? Express app.use()? Schematra middleware is just " [code.text-sm.bg-gray-100.px-1.rounded "(lambda (params next) ...)"] ". Functions all the way down."]]
+       [p.text-teal-700 "Flask decorators? Express app.use()? Schematra middleware is just " [code.text-sm.bg-gray-100.px-1.rounded "(lambda (next) ...)"] ". Functions all the way down."]]
       [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
        [h3.text-lg.font-semibold.text-teal-900.mb-3 "🔧 Deploy Anywhere"]
        [p.text-teal-700 "Compile to a single binary. No Python virtual environments, no Node.js versions, no Docker complexity. If it runs C, it runs Schematra."]]]]
+    
+    ;; Dedicated comparison section
+    [.mt-12.sm:mt-16.text-left.px-4
+     [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center "See The Difference"]
+     ,(comparison-box express-comparison schematra-comparison)]
     
     [.mt-12.sm:mt-16.text-left.px-4
      [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center#getting-started "Getting Started"]
@@ -282,10 +453,10 @@ EXAMPLE
       [p.text-sm.text-teal-600.mt-4.text-center
        "✨ This playground uses real Schematra server-side rendering - what you see is what you get!"]]
      
-     [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center.mt-12 "See More Examples"]
+     [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center.mt-12#see-more-examples "See More Examples"]
      [.space-y-6.sm:space-y-8
-      ,(code-box "Complete Web App" ex1 "A full authentication flow with sessions, forms, and redirects - all in a few lines of clean Scheme code.")
       ,(code-box "Middleware Magic" ex2 "Compose powerful middleware for logging, authentication, and more. Each middleware is just a simple function.")
+      ,(code-box "OAuth2 Authentication" ex5 "Add Google OAuth2 login to your app with oauthtoothy. Complete social authentication in under 20 lines.")
       ,(code-box "Chiccup Power" ex3 "HTML templates that look like your data structures. Map over lists, compose functions, and build UIs functionally.")
       ,(code-box "JSON APIs Made Easy" ex4 "Write APIs that work with data, not strings. send-json-response handles serialization and headers automatically.")]]])
 

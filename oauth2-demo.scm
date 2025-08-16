@@ -1,7 +1,7 @@
 (import
  schematra
+ schematra-session
  chiccup
- sessions
  oauthtoothy
  chicken.process-context
  srfi-69)
@@ -38,6 +38,7 @@
   (list (google-provider
 	 client-id: (get-environment-variable "GOOGLE_CLIENT_ID")
 	 client-secret: (get-environment-variable "GOOGLE_CLIENT_SECRET")))
+  success-redirect: "/profile"
   save-proc: save-user
   load-proc: load-user))
 
