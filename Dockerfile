@@ -16,8 +16,9 @@ COPY parse-deps.scm schematra.egg /schematra/
 RUN chicken-install $(csi -s /schematra/parse-deps.scm)
 # Now install schematra
 COPY . /schematra
-RUN cd /schematra \
-    && chicken-install
-RUN cd /schematra && csc schematra-web.scm
 
-CMD ["/schematra/schematra-web"]
+WORKDIR /schematra
+RUN chicken-install
+RUN csc -O2 -d0 schematra-web.scm
+
+CMD ["./schematra-web"]

@@ -942,9 +942,9 @@
    (server-software `(("Schematra"
                        ,(conc version-major "." version-minor)
                        ,(conc "Running on CHICKEN " (chicken-version)))))
+   (display (schematra-banner))
    (server-port port)
    (server-bind-address bind-address)
-   (display (schematra-banner))
 
    (if development?
        (begin
