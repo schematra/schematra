@@ -8,9 +8,6 @@ RUN curl -LO "https://code.call-cc.org/releases/${CHICKEN_VERSION}/chicken-${CHI
     && tar xzf "chicken-${CHICKEN_VERSION}.tar.gz" \
     && cd "chicken-${CHICKEN_VERSION}" \
     && make && make install
-# FIX: install sendfile-2.x
-RUN cd /tmp && git clone -b sendfile-2.x https://github.com/certainty/chicken_sendfile.git \
-    && cd chicken_sendfile && chicken-install
 # install dependencies
 COPY parse-deps.scm schematra.egg /schematra/
 RUN chicken-install $(csi -s /schematra/parse-deps.scm)
