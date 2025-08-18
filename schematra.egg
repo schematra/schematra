@@ -5,8 +5,7 @@
  (author "Rolando Abarca")
  (license "GPL3")
  (category web)
- (dependencies json
-               spiffy
+ (dependencies spiffy
 	       format
 	       openssl
 	       message-digest
@@ -16,7 +15,8 @@
                srfi-1
                srfi-13
 	       srfi-18
-               srfi-69)
+               srfi-69
+	       sxml-transforms)
  (component-options
   (csc-options "-O3" "-d0"))
  (components (extension chiccup)
