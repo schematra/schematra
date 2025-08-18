@@ -5,7 +5,7 @@
  random-mtzig
  schematra
  chiccup
- sessions
+ schematra-session
  schematra-csrf
  schematra-body-parser)
 
@@ -15,18 +15,18 @@
 
 ;; HTML layout function
 (define (html-layout title body)
-  (ccup/html
-   `[html (("lang" . "en"))
+  (ccup->html
+   `[html (@ (lang "en"))
 	  [head
-	   [meta (("charset" . "utf-8"))]
-	   [meta (("name" . "viewport") ("content" . "width=device-width, initial-scale=1"))]
+	   [meta (@ (charset "utf-8"))]
+	   [meta (@ (name "viewport") (content "width=device-width, initial-scale=1"))]
 	   [title ,title]
-	   [script (("src" . "https://unpkg.com/htmx.org@1.9.10"))]
-	   [script (("src" . "https://cdn.tailwindcss.com"))]]
-	  [body (("hx-headers" .
-		  ;; add the csrf headers at the root so that it's
-		  ;; available for all htmx requests
-		  ,(format "{&quot;x-csrf-token&quot;:&quot;~A&quot;}" (csrf-get-token))))
+	   [script (@ (src "https://unpkg.com/htmx.org@1.9.10"))]
+	   [script (@ (src "https://cdn.tailwindcss.com"))]]
+	  [body (@ (hx-headers
+		    ;; add the csrf headers at the root so that it's
+		    ;; available for all htmx requests
+		    ,(format "{\"x-csrf-token\":\"~A\"}" (csrf-get-token))))
 		,body]]))
 
 ;; Game state - 4x4 grid initialized with zeros
@@ -81,7 +81,7 @@
 
 ;; Render a single tile
 (define (render-tile value)
-  `[.w-16.h-16.rounded-lg.flex.items-center.justify-center.font-bold.text-lg (("class" . ,(tile-color value)))
+  `[.w-16.h-16.rounded-lg.flex.items-center.justify-center.font-bold.text-lg (@ (class ,(tile-color value)))
     ,(if (= value 0) "" (number->string value))])
 
 ;; Render the game grid
@@ -142,27 +142,27 @@
 
 (define (action-button label action #!key extra-css)
   `[button.bg-blue-500.hover:bg-blue-600.text-white.font-bold.py-2.px-4.rounded
-    (("hx-post" . ,(string-append "/2048/move/" action))
-     ,@(if extra-css `(("class" . ,extra-css)) '()))
+    (@ (hx-post ,(string-append "/2048/move/" action))
+       ,@(if extra-css `((class ,extra-css)) '()))
     ,label])
 
 (define (footer)
   `[.mt-8.text-center.text-white.text-sm.opacity-75
     [p "made with "
-       [a.underline.hover:opacity-100 (("href" . "https://github.com/rolandoam/schematra") ("target" . "_blank")) "schematra"] 
+       [a.underline.hover:opacity-100 (@ (href "https://github.com/rolandoam/schematra") (target "_blank")) "schematra"] 
        " & "
-       [a.underline.hover:opacity-100 (("href" . "https://htmx.org") ("target" . "_blank")) "htmx"]]])
+       [a.underline.hover:opacity-100 (@ (href "https://htmx.org") (target "_blank")) "htmx"]]])
 
 ;; Game page content
 (define (game-2048-content)
   `[.min-h-screen.bg-gradient-to-br.from-blue-400.to-purple-600.flex.flex-col.items-center.justify-center.p-4
-    (("hx-target" . "#game-container") ("hx-swap" . "innerHTML"))
+    (@ (hx-target "#game-container") (hx-swap "innerHTML"))
     [.text-center.flex-grow.flex.flex-col.justify-center
      [h1.text-4xl.font-bold.text-white.mb-8 "🎮 2048 Game"]
      [\#game-container ,(render-grid)]
      [.mt-8.space-x-4
       [button.bg-green-500.hover:bg-green-600.text-white.font-bold.py-2.px-4.rounded
-       (("hx-post" . "/2048/new-game"))
+       (@ (hx-post "/2048/new-game"))
        "New Game"]
       [.mt-4.text-white
        [p "Use arrow keys or buttons to move tiles"]
@@ -182,7 +182,7 @@
 (post ("/2048/new-game")
       (parameterize ((game-grid (new-game)))
 	(session-set! "game-state" (game-grid))
-        (ccup/html (render-grid))))
+        (ccup->html (render-grid))))
 
 (post ("/2048/move/:direction")
       ;; game-grid is the "state" that is leveraged by components when
@@ -194,4 +194,7 @@
 	  (when (not (equal? old-grid (game-grid)))
             (add-random-tile!))
 	  (session-set! "game-state" (game-grid))
-          (ccup/html (render-grid)))))
+          (ccup->html (render-grid)))))
+
+(schematra-install)
+(schematra-start)
