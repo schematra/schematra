@@ -134,6 +134,13 @@
  (define ccup/void-elements
    '(area base br col embed hr img input link meta param source track wbr))
 
+ ;; Custom enattr that properly escapes attribute values
+ (define (ccup/enattr attr-key value)
+   (if (null? value)
+       (list #\space attr-key)
+       (let ((val-str (if (list? value) (car value) value)))
+         (list #\space attr-key "=\"" (string->goodHTML val-str) #\"))))
+
  (define (escape-content tag content)
    (cond
     ;; just return the content for these tags
@@ -186,7 +193,7 @@
    
    (let ((processed-tree (pre-post-order* tree
                                           `((@
-                                             ((*default* . ,(lambda (attr-key value) (enattr attr-key value))))
+                                             ((*default* . ,(lambda (attr-key value) (ccup/enattr attr-key value))))
                                              . ,(lambda (trigger value) (cons '@ value)))
                                             (*default* . ,(lambda (tag elems)
                                                             (ccup/entag tag elems)))
