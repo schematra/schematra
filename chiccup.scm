@@ -158,12 +158,12 @@
       (else content)))  ; Pass through everything else (strings, chars, etc.)
    
    (let ((processed-tree (pre-post-order* tree
-                                         `((@
-                                            ((*default* . ,(lambda (attr-key value) (enattr attr-key value))))
-                                            . ,(lambda (trigger value) (cons '@ value)))
-                                           (*default* . ,(lambda (tag elems)
-                                                           (ccup/entag tag elems)))
-                                           (*text* . ,(lambda (trigger str) str))))))
+                                          `((@
+                                             ((*default* . ,(lambda (attr-key value) (enattr attr-key value))))
+                                             . ,(lambda (trigger value) (cons '@ value)))
+                                            (*default* . ,(lambda (tag elems)
+                                                            (ccup/entag tag elems)))
+                                            (*text* . ,(lambda (trigger str) str))))))
      (SRV:send-reply (unwrap-raw processed-tree))))
 
  ;; Generate HTML from a chiccup element-spec by converting to SXML first.

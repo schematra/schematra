@@ -44,7 +44,7 @@ Schematra is perfect for:
 (import schematra chiccup)
 
 ;; Define routes
-(get ("/path") (ccup/html `[h1 "Hello"]))
+(get ("/path") (ccup->html `[h1 "Hello"]))
 (post ("/submit") "Form submitted!")
 
 ;; Start server
@@ -56,12 +56,12 @@ Schematra is perfect for:
 ```scheme
 ;; Simple routes
 (get ("/") "Home page")
-(get ("/about") (ccup/html `[h1 "About Us"]))
+(get ("/about") (ccup->html `[h1 "About Us"]))
 
 ;; URL parameters
 (get ("/user/:id") 
      (let ((id (alist-ref "id" (current-params) equal?)))
-       (ccup/html `[h1 ,(string-append "User " id)])))
+       (ccup->html `[h1 ,(string-append "User " id)])))
 
 ;; Query parameters
 (get ("/search")
@@ -98,9 +98,9 @@ Schematra is perfect for:
 `[.container.mx-auto#main "Content"]
 `[button.btn.btn-primary "Click me"]
 
-;; Attributes
-`[a ((href . "/page")) "Link"]
-`[input ((type . "text") (name . "username"))]
+;; Attributes with @ syntax
+`[a (@ (href "/page")) "Link"]
+`[input (@ (type "text") (name "username"))]
 
 ;; Dynamic content
 `[ul ,@(map (lambda (item) `[li ,item]) items)]
@@ -162,7 +162,7 @@ Create a file called `hello.scm`:
 (import schematra chiccup)
 
 (get ("/")
-     (ccup/html
+     (ccup->html
       `[html
         [head [title "My First App"]]
         [body [h1 "Hello, Schematra!"]]]))
@@ -210,7 +210,7 @@ can be accessed using `(current-params)` with string keys:
 ```scheme
 (get ("/user/:name")
      (let ((name (alist-ref "name" (current-params) equal?)))
-       (ccup/html `[h1 ,(string-append "Hello, " name "!")])))
+       (ccup->html `[h1 ,(string-append "Hello, " name "!")])))
 ```
 
 ### Query Parameters
@@ -222,13 +222,13 @@ symbol keys:
 (get ("/search")
      (let ((query (alist-ref 'q (current-params))))
        (if query
-           (ccup/html `[p ,(string-append "Searching for: " query)])
-           (ccup/html `[p "No search query provided"]))))
+           (ccup->html `[p ,(string-append "Searching for: " query)])
+           (ccup->html `[p "No search query provided"]))))
 ```
 
 ## Chiccup HTML rendering
 
-Chiccup allows you to write HTML using Lisp syntax with CSS class integration.
+Chiccup allows you to write HTML using Lisp syntax with CSS class integration. Chiccup is built on top of sxml-transforms, converting your chiccup syntax to SXML and then to HTML. You can use `ccup->sxml` to get the intermediate SXML representation and leverage the full power of the sxml-transforms ecosystem for advanced transformations.
 
 ### Basic Syntax
 
@@ -236,11 +236,7 @@ Chiccup allows you to write HTML using Lisp syntax with CSS class integration.
 ;; Element with content
 `[h1 "Hello World"]
 
-;; Element with attributes
-`[a (("href" . "https://example.com")) "Link"])
-;; => <a href="https://example.com">Link</a>
-
-;; Element with CSS classes - default element is "div"
+;; Element with CSS classes and ID - default element is "div"
 `[.container.mx-auto#the-id "Content"]
 ;; => <div class="container mx-auto" id="the-id">Content</div>
 
@@ -251,42 +247,72 @@ Chiccup allows you to write HTML using Lisp syntax with CSS class integration.
 ;; => <div class="card"><h2 class="title">Card Title</h2><p class="content">Card content goes here</p></div>
 ```
 
+**Note:** CSS selector syntax follows standard conventions where ID (#id) must come after classes.
+
 By default all content is html-escaped:
 
 ```scheme
-(ccup/html `[p "my <em>emphasized</em> text"])
+(ccup->html `[p "my <em>emphasized</em> text"])
 ;; => <p>my &lt;em&gt;emphasized&lt;/em&gt; text</p>
 ```
 
-If you want to add raw text, pass it as a list with 'raw as the first
-element:
+If you want to add raw text, pass it as a list with 'raw as the first element:
 
 ```scheme
-(ccup/html `[p (raw "my <em>emphasized</em> text")])
+(ccup->html `[p (raw "my <em>emphasized</em> text")])
 ;; => <p>my <em>emphasized</em> text</p>
 ```
 
 ### HTML Attributes
 
-You can pass an optional association list as a second element in the
-html-tuple to covert those to html attributes.
+You can add HTML attributes using the `@` syntax as the second element:
 
 ```scheme
-(ccup/html `[.bg-blue-500.text-white.p-4.rounded
-  [a.text-2xl.font-bold ((hx-post . "/target")) "Styled link"]
-  [p.mt-2 "Styled paragraph"]])
-;; => <div class="bg-blue-500 text-white p-4 rounded"><a class="text-2xl font-bold" hx-post="/target">Styled link</a><p class="mt-2">Styled paragraph</p></div>
+;; Basic attributes with @
+`[a (@ (href "https://example.com")) "Link"]
+;; => <a href="https://example.com">Link</a>
+
+;; Multiple attributes
+`[button (@ (type "submit") (disabled)) "Submit"]
+;; => <button type="submit" disabled>Submit</button>
+
+;; Combining CSS classes with attributes
+`[button.btn.primary (@ (type "submit") (disabled)) "Submit"]
+;; => <button class="btn primary" type="submit" disabled>Submit</button>
 ```
 
-Attribute keys can be either symbol or strings. Values will be html-escaped. If you add css-classes as an attribute, they will be aggregated with the element classes:
+### Conditional Attributes
+
+Use unquote-splicing (`,@`) to conditionally add attributes:
 
 ```scheme
-(ccup/html `[.container ((class . ,(if selected "foo" "bar")))])
-;; if selected is #t => <div class="container foo"></div>
-;; if selected is #f => <div class="container bar"></div>
+;; Simple conditional attribute
+(let ((is-disabled #t))
+  `[button (@ (type "submit") ,@(if is-disabled '((disabled)) '())) "Submit"])
+;; => <button type="submit" disabled>Submit</button>
+
+;; Multiple conditional attributes
+(let ((is-admin #t) (is-active #f))
+  `[div (@ (class "user") 
+           ,@(if is-admin '((data-role "admin")) '())
+           ,@(if is-active '((data-status "active")) '())) "Content"])
+;; => <div class="user" data-role="admin">Content</div>
 ```
 
-If you need to dynamically build an id, just pass it as an attribute.
+### Attribute Merging
+
+CSS classes from selectors and attributes are automatically merged:
+
+```scheme
+`[.container (@ (class "extra-class")) "Content"]
+;; => <div class="container extra-class">Content</div>
+
+;; Conditional class merging
+(let ((highlighted #t))
+  `[.card (@ ,@(if highlighted '((class "highlight")) '())) "Content"])
+;; if highlighted is #t => <div class="card highlight">Content</div>
+;; if highlighted is #f => <div class="card">Content</div>
+```
 
 ### Dynamic Content
 
@@ -391,7 +417,7 @@ The middleware automatically:
 
 ;; HTML form
 (get ("/login")
-     (ccup/html
+     (ccup->html
       `[html
         [head [title "Login"]]
         [body
@@ -405,8 +431,8 @@ The middleware automatically:
       (let ((username (alist-ref 'username (current-params)))  ; Symbol key
             (password (alist-ref 'password (current-params))))  ; Symbol key
         (if (valid-credentials? username password)
-            (ccup/html `[p "Login successful!"])
-            (ccup/html `[p "Invalid credentials"]))))
+            (ccup->html `[p "Login successful!"])
+            (ccup->html `[p "Invalid credentials"]))))
 
 ;; Mixed parameters example - URL params + form data
 (post ("/users/:id/update")
@@ -414,7 +440,7 @@ The middleware automatically:
             (email   (alist-ref 'email (current-params)))          ; Symbol key (form data)
             (name    (alist-ref 'name (current-params))))          ; Symbol key (form data)
         (update-user! user-id name email)
-        (ccup/html `[p "User updated successfully"])))
+        (ccup->html `[p "User updated successfully"])))
 ```
 
 #### Parameter Key Types
@@ -666,7 +692,7 @@ Oauthtoothy supports optional user data persistence through save and load proced
 (get ("/profile")
      (let ((auth (current-auth)))
        (if (alist-ref 'authenticated? auth)
-           (ccup/html 
+           (ccup->html 
             `[html
               [head [title "Profile"]]
               [body
@@ -682,7 +708,7 @@ Oauthtoothy supports optional user data persistence through save and load proced
 
 ;; Public landing page
 (get ("/")
-     (ccup/html
+     (ccup->html
       `[html
         [head [title "My App"]]
         [body
@@ -715,7 +741,7 @@ Configure the base URL for OAuth2 callbacks (required for production):
 (get ("/dashboard")
      (let ((auth (current-auth)))
        (if (alist-ref 'authenticated? auth)
-           (ccup/html `[h1 "Dashboard Content"])
+           (ccup->html `[h1 "Dashboard Content"])
            (redirect "/auth/google"))))
 ```
 
@@ -733,8 +759,8 @@ Create reusable authentication middleware:
 (use-middleware! require-auth)
 
 ;; Now all routes require authentication
-(get ("/admin") (ccup/html `[h1 "Admin Panel"]))
-(get ("/settings") (ccup/html `[h1 "User Settings"]))
+(get ("/admin") (ccup->html `[h1 "Admin Panel"]))
+(get ("/settings") (ccup->html `[h1 "User Settings"]))
 ```
 
 ### Multiple Provider Setup
@@ -753,7 +779,7 @@ Create reusable authentication middleware:
 
 ;; Login page with multiple options
 (get ("/login")
-     (ccup/html
+     (ccup->html
       `[html
         [head [title "Login"]]
         [body
@@ -934,7 +960,7 @@ Start the web server.
 
 ### Chiccup Functions
 
-#### `(ccup/html s-html)`
+#### `(ccup->html s-html)`
 Convert Chiccup list to HTML string.
 
 ## Advanced Topics
@@ -1031,13 +1057,13 @@ Clear all session data (useful for logout):
               (session-set! "user-id" (get-user-id username))
               (session-set! "username" username)
               (redirect "/dashboard"))
-            (ccup/html `[p "Invalid credentials"]))))
+            (ccup->html `[p "Invalid credentials"]))))
 
 ;; Protected route
 (get ("/dashboard")
      (let ((username (session-get "username")))
        (if username
-           (ccup/html `[h1 ,(string-append "Welcome, " username "!")])
+           (ccup->html `[h1 ,(string-append "Welcome, " username "!")])
            (redirect "/login"))))
 
 ;; Logout route

@@ -422,7 +422,7 @@
  ;;; (write-sse-data "Chat message" id: "msg-123" event: "chat")
  ;;;
  ;;; ;; HTML content for HTMX
- ;;; (write-sse-data (ccup/html `[div.alert "Server alert!"]) event: "update")
+ ;;; (write-sse-data (ccup->html `[div.alert "Server alert!"]) event: "update")
  ;;; ```
  ;;;
  ;;; ### Connection Management
@@ -763,7 +763,7 @@
            (middleware (lambda () (loop remaining)))))))
 
  (define (build-error-page exn)
-   (ccup/html
+   (ccup->html
     `[p "Got an error: " ,(format "~a" exn)]))
 
  (handle-exception

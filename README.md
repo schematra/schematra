@@ -44,7 +44,7 @@ chicken-install
 (get ("/")
      (let ((user (session-get "username")))
        (if user
-           (ccup/html `[h1 ,(format "Welcome back, ~a!" user)])
+           (ccup->html `[h1 ,(format "Welcome back, ~a!" user)])
            (redirect "/login"))))
 
 (post ("/login")
