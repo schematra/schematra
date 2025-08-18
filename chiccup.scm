@@ -130,6 +130,20 @@
  (define ccup/doctype (make-parameter "<!doctype html>"))
  (define ccup/raw-content-tags (make-parameter '(script style)))
 
+ ;; HTML void elements that should not have closing tags
+ (define ccup/void-elements
+   '(area base br col embed hr img input link meta param source track wbr))
+
+ (define (escape-content tag content)
+   (cond
+    ;; just return the content for these tags
+    ((member tag (ccup/raw-content-tags))
+     content)
+    ((string? content)
+     (string->goodHTML content))
+    (else
+     (map (lambda (itm) (if (string? itm) (string->goodHTML itm) itm)) content))))
+
  ;; Custom entag that removes the leading newline and handles text escaping
  (define (ccup/entag tag elems)
    (cond
@@ -138,12 +152,25 @@
      (list tag (car elems)))
     ;; Regular case: generate HTML tags, escape based on raw-content-tags list
     (else
-     (if (and (pair? elems) (pair? (car elems)) (eq? '@ (caar elems)))
-         (list #\< tag (cdar elems) #\>
-               (and (pair? (cdr elems))
-                    (list (cdr elems) "</" tag #\>)))
-         (list #\< tag #\> (and (pair? elems)
-                                (list elems "</" tag #\>)))))))
+     (let* ((is-void? (member tag ccup/void-elements))
+            (has-attrs? (and (pair? elems) (pair? (car elems)) (eq? '@ (caar elems))))
+            (attrs (if has-attrs? (cdar elems) '()))
+            (body (if has-attrs? (cdr elems) elems)))
+       (if is-void?
+           ;; Void element - no closing tag
+           (if has-attrs?
+               (list #\< tag attrs #\>)
+               (list #\< tag #\>))
+           ;; Non-void element - always include closing tag
+           (if has-attrs?
+               (list #\< tag attrs #\>
+                     (if (pair? body)
+                         (list (escape-content tag body) "</" tag #\>)
+                         (list "</" tag #\>)))
+               (list #\< tag #\>
+                     (if (pair? elems)
+                         (list (escape-content tag elems) "</" tag #\>)
+                         (list "</" tag #\>)))))))))
 
  ;; Custom SXML->HTML without newlines and with raw content support
  (define (ccup/SXML->HTML tree)
