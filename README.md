@@ -109,7 +109,7 @@ Contributions welcome! See our [contributing guidelines](docs/docs.md#contributi
 
 ## License
 
-GNU General Public License v3.0 - see [LICENSE.md](LICENSE.md) for details.
+Licensed under 3-Clause BSD license.
 
 ## Logo License
 
