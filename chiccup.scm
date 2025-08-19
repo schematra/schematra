@@ -163,8 +163,12 @@
      content)
     ((string? content)
      (string->goodHTML content))
+    ((null? content)
+     "")
+    ((list? content)
+     (map (lambda (itm) (if (string? itm) (string->goodHTML itm) itm)) content))
     (else
-     (map (lambda (itm) (if (string? itm) (string->goodHTML itm) itm)) content))))
+     (if (string? content) (string->goodHTML content) content))))
 
  ;; Custom entag that removes the leading newline and handles text escaping
  (define (ccup/entag tag elems)
@@ -186,13 +190,11 @@
            ;; Non-void element - always include closing tag
            (if has-attrs?
                (list #\< tag attrs #\>
-                     (if (pair? body)
-                         (list (escape-content tag body) "</" tag #\>)
-                         (list "</" tag #\>)))
+                     (escape-content tag body)
+                     "</" tag #\>)
                (list #\< tag #\>
-                     (if (pair? elems)
-                         (list (escape-content tag elems) "</" tag #\>)
-                         (list "</" tag #\>)))))))))
+                     (escape-content tag elems)
+                     "</" tag #\>)))))))
 
  ;; Custom SXML->HTML without newlines and with raw content support
  (define (ccup/SXML->HTML tree)
@@ -201,10 +203,10 @@
       ((and (list? content) 
             (not (null? content)) 
             (eq? (car content) '*RAW*))
-       (cadr content))  ; Unwrap raw content
+       (cadr content))			; Unwrap raw content
       ((and (list? content) (not (null? content)))
-       (map unwrap-raw content))  ; Recursively process non-empty lists
-      (else content)))  ; Pass through everything else (strings, chars, etc.)
+       (map unwrap-raw content)) ; Recursively process non-empty lists
+      (else content))) ; Pass through everything else (strings, chars, etc.)
    
    (let ((processed-tree (pre-post-order* tree
                                           `((@
