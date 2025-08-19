@@ -33,8 +33,8 @@
 (use-middleware! (csrf-middleware))
 
 (define (add-google-font  name #!optional (weight 400))
-  `[link ((rel . "stylesheet")
-	  (href . ,(conc "https://fonts.googleapis.com/css2?family=" name "&display=swap")))])
+  `[link (@ (rel "stylesheet")
+	    (href ,(conc "https://fonts.googleapis.com/css2?family=" name "&display=swap")))])
 
 (define (add-style)
   `[style ".cookie-regular {
@@ -52,14 +52,14 @@
 (get ("/")
      (let ((user (session-get "username")))
        (if user
-           (ccup/html `[h1 ,(format "Welcome back, ~a!" user)])
+           (ccup->html `[h1 ,(format "Welcome back, ~a!" user)])
            (redirect "/login"))))
 
 (get ("/login")
-     (ccup/html 
-      `[form ((method . "POST") (action . "/login"))
-        [input ((type . "text") (name . "username") 
-                (placeholder . "Username"))]
+     (ccup->html
+      `[form (@ (method "POST") (action "/login"))
+        [input (@ (type "text") (name "username")
+                  (placeholder "Username"))]
         [button "Login"]]))
 
 (post ("/login")
@@ -105,15 +105,15 @@ EXAMPLE
     [p.text-gray-600 ,(todo-description todo)]
     [.flex.gap-2.mt-2
      [button.bg-green-500.text-white.px-3.py-1.rounded
-      ((onclick . ,(format "completeTodo(~a)" (todo-id todo))))
+      (@ (onclick ,(format "completeTodo(~a)" (todo-id todo))))
       "Complete"]
      [button.bg-red-500.text-white.px-3.py-1.rounded
-      ((onclick . ,(format "deleteTodo(~a)" (todo-id todo))))
+      (@ (onclick ,(format "deleteTodo(~a)" (todo-id todo))))
       "Delete"]]])
 
 (get ("/todos")
      (let ((todos (get-user-todos (session-get "user-id"))))
-       (ccup/html
+       (ccup->html
         `[.container.mx-auto.p-6
           [h1.text-2xl.mb-4 "My Todos"]
           ,@(map render-todo todos)])))
@@ -174,7 +174,7 @@ EXAMPLE
 (get ("/profile")
      (let ((auth (current-auth)))
        (if (alist-ref 'authenticated? auth)
-           (ccup/html `[h1 ,(string-append "Welcome, " 
+           (ccup->html `[h1 ,(string-append "Welcome, " 
                                            (alist-ref 'name auth))])
            (redirect "/auth/google"))))
 
@@ -185,118 +185,7 @@ EXAMPLE
 EXAMPLE
 ))
 
-(define express-comparison '(#<<EXPRESS
-// Express.js - 59 lines for basic auth app
-const express = require('express');
-const session = require('express-session');
-const bodyParser = require('body-parser');
-const path = require('path');
 
-const app = express();
-
-// Session middleware setup
-app.use(session({
-  secret: 'secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: false }
-}));
-
-// Body parser middleware
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Authentication middleware
-function requireAuth(req, res, next) {
-  if (req.session.username) {
-    next();
-  } else {
-    res.redirect('/login');
-  }
-}
-
-// Routes
-app.get('/', requireAuth, (req, res) => {
-  res.send(`
-    <html>
-      <head><title>Dashboard</title></head>
-      <body>
-        <h1>Welcome back, ${req.session.username}!</h1>
-        <a href="/logout">Logout</a>
-      </body>
-    </html>
-  `);
-});
-
-app.get('/login', (req, res) => {
-  res.send(`
-    <html>
-      <head><title>Login</title></head>
-      <body>
-        <form method="POST" action="/login">
-          <input type="text" name="username" placeholder="Username" required>
-          <button type="submit">Login</button>
-        </form>
-      </body>
-    </html>
-  `);
-});
-
-app.post('/login', (req, res) => {
-  const username = req.body.username;
-  if (username) {
-    req.session.username = username;
-    res.redirect('/');
-  } else {
-    res.status(400).send('Username required');
-  }
-});
-
-app.get('/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/login');
-});
-
-app.listen(8080, () => {
-  console.log('Server running on http://localhost:8080');
-});
-EXPRESS
-))
-
-(define schematra-comparison '(#<<SCHEMATRA
-;; Schematra - 25 lines for the same functionality
-(import schematra schematra-session
-	schematra-body-parser chiccup)
-
-(use-middleware! (session-middleware "secret-key"))
-(use-middleware! (body-parser-middleware))
-
-(get ("/")
-     (if (session-get "username")
-         (ccup/html `[html [head [title "Dashboard"]]
-                           [body [h1 ,(format "Welcome back, ~a!" (session-get "username"))]
-                                 [a ((href . "/logout")) "Logout"]]])
-         (redirect "/login")))
-
-(get ("/login")
-     (ccup/html `[html [head [title "Login"]]
-                       [body [form ((method . "POST") (action . "/login"))
-                                   [input ((type . "text") (name . "username") (placeholder . "Username") (required . #t))]
-                                   [button ((type . "submit")) "Login"]]]]))
-
-(post ("/login")
-      (let ((username (alist-ref 'username (current-params))))
-	(if (not username) (halt 'bad-request "Username required"))
-        (session-set! "username" username)
-	(redirect "/")))
-
-(get ("/logout")
-     (session-destroy!)
-     (redirect "/login"))
-
-(schematra-install)
-(schematra-start)
-SCHEMATRA
-))
 
 (define (code-box title example subtext)
   `[.bg-white.p-4.sm:p-6.rounded-lg.shadow-sm.border.border-teal-100
@@ -305,20 +194,6 @@ SCHEMATRA
      [code.language-scheme ,(car example)]]
     [p.text-sm.sm:text-base.text-teal-700.mt-2.sm:mt-3 ,subtext]])
 
-(define (comparison-box express-code schematra-code)
-  `[.bg-white.p-4.sm:p-6.rounded-lg.shadow-sm.border.border-teal-100
-    [h3.text-lg.sm:text-xl.font-semibold.text-teal-900.mb-4.text-center "Express.js vs Schematra: Same App, Different Complexity"]
-    [.grid.grid-cols-1.lg:grid-cols-2.gap-4
-     [div
-      [h4.text-sm.font-semibold.text-gray-700.mb-2.text-center "Express.js - 59 Lines"]
-      [pre.bg-gray-50.p-3.rounded.text-xs.h-96.overflow-y-auto
-       [code.language-javascript ,(car express-code)]]]
-     [div
-      [h4.text-sm.font-semibold.text-gray-700.mb-2.text-center "Schematra - 25 Lines"]
-      [pre.bg-gray-50.p-3.rounded.text-xs.h-96.overflow-y-auto
-       [code.language-scheme ,(car schematra-code)]]]]
-    [p.text-sm.text-teal-700.mt-4.text-center.italic
-     "Both apps provide identical functionality: sessions, authentication, form handling, and templating."]])
 
 (define (footer)
   `[footer.bg-teal-800.text-white.mt-12.sm:mt-20
@@ -331,32 +206,32 @@ SCHEMATRA
       [div
        [h3.text-lg.font-semibold.mb-4 "Resources"]
        [ul.space-y-2
-        [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "https://github.com/schematra/schematra/blob/main/docs/docs.md")) "Documentation"]]
-        [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "#see-more-examples")) "Examples"]]
-        [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "/api")) "API Reference"]]
-        [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "#community")) "Community"]]]]
+        [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "https://github.com/schematra/schematra/blob/main/docs/docs.md")) "Documentation"]]
+        [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "#see-more-examples")) "Examples"]]
+        [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "/api")) "API Reference"]]
+        [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "#community")) "Community"]]]]
       [div
        [h3.text-lg.font-semibold.mb-4 "Connect"]
        [ul.space-y-2
-        [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "https://github.com/schematra/schematra")) "GitHub"]]
-        [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "https://github.com/schematra/schematra/issues")) "Report Issues"]]
-        [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "https://github.com/schematra/schematra?tab=readme-ov-file#contributing")) "Contribute"]]
-        [li [a.text-teal-200.hover:text-white.transition-colors (("href" . "https://raw.githubusercontent.com/schematra/schematra/refs/heads/main/LICENSE.md")) "License"]]]]]
+        [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "https://github.com/schematra/schematra")) "GitHub"]]
+        [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "https://github.com/schematra/schematra/issues")) "Report Issues"]]
+        [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "https://github.com/schematra/schematra?tab=readme-ov-file#contributing")) "Contribute"]]
+        [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "https://raw.githubusercontent.com/schematra/schematra/refs/heads/main/LICENSE.md")) "License"]]]]]
      [.border-t.border-teal-700.mt-6.sm:mt-8.pt-6.sm:pt-8.text-center
       [p.text-teal-300.text-xs.sm:text-sm "© 2025 Rolando Abarca. Released under the GNU General Public License v3.0"]]]])
 
 (define (layout page)
-  `[html ((lang . "en-US"))
+  `[html (@ (lang "en-US"))
 	 [head
-	  [meta ((charset . "utf-8"))]
-	  [meta ((name . "viewport") (content . "width=device-width, initial-scale=1"))]
+	  [meta (@ (charset "utf-8"))]
+	  [meta (@ (name "viewport") (content "width=device-width, initial-scale=1"))]
 	  [title "Schematra - Scheme Web Framework"]
-	  [script ((src . "https://cdn.tailwindcss.com"))]
-	  [script ((src . "https://unpkg.com/htmx.org@1.9.10"))]
-	  [link ((rel . "preconnect") (href . "https://fonts.googleapis.com"))]
-	  [link ((rel . "preconnect") (href . "https://fonts.gstatic.com"))]
+	  [script (@ (src "https://cdn.tailwindcss.com"))]
+	  [script (@ (src "https://unpkg.com/htmx.org@1.9.10"))]
+	  [link (@ (rel "preconnect") (href "https://fonts.googleapis.com"))]
+	  [link (@ (rel "preconnect") (href "https://fonts.gstatic.com"))]
 	  ;; add highlight.js
-	  [link ((rel . "stylesheet") (href . "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css"))]
+	  [link (@ (rel "stylesheet") (href "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css"))]
 	  ,(add-google-font "Cookie")
 	  ,(add-style)]
 	 [body.bg-teal-50.min-h-screen
@@ -364,54 +239,52 @@ SCHEMATRA
 	   [main.flex-1.py-8.px-4.sm:px-6.lg:px-8
 	    ,page]]
 	  ,(footer)
-	  [script ((src . "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"))]
-	  [script ((src . "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/scheme.min.js"))]
+	  [script (@ (src "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"))]
+	  [script (@ (src "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/scheme.min.js"))]
 	  [script "hljs.highlightAll();"]]])
 
 (define (landing-page)
   `[.max-w-4xl.mx-auto.text-center
-    [img.mx-auto.mb-6.h-16.w-auto.sm:h-20.lg:h-24 (("src" . "/static/logo.png") ("alt" . "Schematra Logo"))]
+    [img.mx-auto.mb-6.h-16.w-auto.sm:h-20.lg:h-24 (@ (src "/static/logo.png") (alt "Schematra Logo"))]
     [h1.text-3xl.sm:text-4xl.lg:text-5xl.font-bold.text-teal-900.mb-4.sm:mb-6.cookie-regular "(Schematra)"]
     [p.text-lg.sm:text-xl.text-teal-700.mb-6.sm:mb-8.max-w-2xl.mx-auto.px-4 
-     "The web framework that makes complex things simple. Authentication in 3 lines. Middleware that's actually composable. HTML that looks like your data. Built for developers who value elegance over boilerplate."]
+     "Write web apps the way you think. Express HTML as data with Chiccup. Build components that compose naturally. Create powerful middleware with simple functions. Authentication in 3 lines, not 30."]
     [.flex.flex-col.sm:flex-row.gap-3.sm:gap-4.justify-center.mb-8.sm:mb-12.px-4
      [a.bg-teal-600.text-white.px-6.sm:px-8.py-3.rounded-lg.font-semibold.hover:bg-teal-700.transition-colors.text-center
-      (("href" . "#getting-started")) "Get Started"]
+      (@ (href "#getting-started")) "Get Started"]
      [a.border.border-teal-300.text-teal-700.px-6.sm:px-8.py-3.rounded-lg.font-semibold.hover:bg-teal-50.transition-colors.text-center
-      (("href" . "https://github.com/schematra/schematra/blob/main/docs/docs.md")) "Documentation"]]
+      (@ (href "https://github.com/schematra/schematra/blob/main/docs/docs.md")) "Documentation"]]
     [.grid.grid-cols-1.md:grid-cols-3.gap-4.sm:gap-6.lg:gap-8.text-left.px-4
      [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
       [h3.text-lg.font-semibold.text-teal-900.mb-3 "Zero Config Sessions"]
       [p.text-teal-700 "Cookie-based sessions work immediately. No setup, no database, no complexity. " [code.text-sm.bg-gray-100.px-1.rounded "session-set!"] " and you're done."]]
      [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
-      [h3.text-lg.font-semibold.text-teal-900.mb-3 "HTML as Data"]
-      [p.text-teal-700 "Write " [code.text-sm.bg-gray-100.px-1.rounded "`[.card [h1 \"Title\"]]"] " instead of wrestling with template engines. Your HTML structure mirrors your data structure."]]
+      [h3.text-lg.font-semibold.text-teal-900.mb-3 "Chiccup: HTML as Data"]
+      [p.text-teal-700 "No more template syntax headaches. Write " [code.text-sm.bg-gray-100.px-1.rounded "`[.card [h1 \"Title\"]]"] " and get clean HTML. Map over lists, compose functions, build UIs that make sense."]]
      [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
       [h3.text-lg.font-semibold.text-teal-900.mb-3 "3-Line Middleware"]
       [p.text-teal-700 "Real middleware that composes. Write a function, call " [code.text-sm.bg-gray-100.px-1.rounded "use-middleware!"] ", done. No decorators, no magic, just functions."]]]
     
     [.mt-12.sm:mt-16.text-left.px-4
-     [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center "Stop Fighting Your Framework"]
+     [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center "Why Developers Choose Schematra"]
      [.grid.grid-cols-1.md:grid-cols-2.gap-6.sm:gap-8.mb-8.sm:mb-12
       [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
-       [h3.text-lg.font-semibold.text-teal-900.mb-3 "🚀 Less Code, More Results"]
-       [p.text-teal-700 "What takes Express 50+ lines of boilerplate (sessions, middleware, auth) takes Schematra less than 20 lines of clean, readable Scheme. Zero magic, maximum clarity."]]
+       [h3.text-lg.font-semibold.text-teal-900.mb-3 "🚀 Write Less, Build More"]
+       [p.text-teal-700 "Complete auth flows in 20 lines. Middleware in 3 lines. Components that compose naturally with Chiccup. Zero boilerplate, maximum clarity."]]
       [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
-       [h3.text-lg.font-semibold.text-teal-900.mb-3 "⚡ Templates That Don't Lie"]
-       [p.text-teal-700 "Forget Handlebars, Jinja, and ERB. Your HTML structure is your data structure. No context switching, no template syntax to learn, no surprises."]]
+       [h3.text-lg.font-semibold.text-teal-900.mb-3 "⚡ Chiccup Magic"]
+       [p.text-teal-700 "Your HTML structure " [em "is"] " your data structure. No template engines, no context switching, no surprises. Just pure functional UI composition."]]
       [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
-       [h3.text-lg.font-semibold.text-teal-900.mb-3 "🎯 Middleware Done Right"]
-       [p.text-teal-700 "Flask decorators? Express app.use()? Schematra middleware is just " [code.text-sm.bg-gray-100.px-1.rounded "(lambda (next) ...)"] ". Functions all the way down."]]
+       [h3.text-lg.font-semibold.text-teal-900.mb-3 "🎯 Functions All The Way"]
+       [p.text-teal-700 "Middleware is just " [code.text-sm.bg-gray-100.px-1.rounded "(lambda (next) ...)"] ". Routes are functions. Components are functions. Simple, composable, testable."]]
       [.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100
        [h3.text-lg.font-semibold.text-teal-900.mb-3 "🔧 Deploy Anywhere"]
-       [p.text-teal-700 "Compile to a single binary. No Python virtual environments, no Node.js versions, no Docker complexity. If it runs C, it runs Schematra."]]]]
+       [p.text-teal-700 "Compile to a single binary. No runtime dependencies, no complex deployments. If it runs C, it runs Schematra."]]]]
     
-    ;; Dedicated comparison section
-    [.mt-12.sm:mt-16.text-left.px-4
-     [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center "See The Difference"]
-     ,(comparison-box express-comparison schematra-comparison)]
     
     [.mt-12.sm:mt-16.text-left.px-4
+     [.text-center.mb-8
+      [p.text-lg.text-teal-600 "Ready to write web apps that make sense?"]]
      [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center#getting-started "Getting Started"]
      [.bg-white.p-6.rounded-lg.shadow-sm.mb-8.border.border-teal-100
       [h3.text-lg.font-semibold.text-teal-900.mb-4 "Installation"]
@@ -424,7 +297,8 @@ SCHEMATRA
 	    [code "cd schematra && chicken-install"]]]
        [li "Create your first app by creating a new file (e.g., " [code.bg-gray-100.px-2.py-1.rounded "app.scm"] ") and start coding!"]]]
      
-     [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center.mt-12 "Try Chiccup Live"]
+     [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-2.text-center.mt-12 "Experience Chiccup"]
+     [p.text-center.text-teal-600.mb-6.sm:mb-8 "See how HTML-as-data transforms the way you build components"]
      [.bg-white.p-4.sm:p-6.rounded-lg.shadow-sm.border.border-teal-100.mb-8.sm:mb-12
       [.grid.grid-cols-1.lg:grid-cols-2.gap-4
        [div
@@ -432,33 +306,35 @@ SCHEMATRA
          [h3.text-lg.font-semibold.text-teal-900 "Chiccup Code"]
          [.space-x-2
           [button.text-sm.bg-teal-100.text-teal-700.px-3.py-1.rounded.hover:bg-teal-200
-           ((hx-get . "/playground/card") (hx-target . "#chiccup-input") (hx-swap . "outerHTML")) "Card"]
+           (@ (hx-get "/playground/card") (hx-target "#chiccup-input") (hx-swap "outerHTML")) "Card"]
           [button.text-sm.bg-teal-100.text-teal-700.px-3.py-1.rounded.hover:bg-teal-200
-           ((hx-get . "/playground/form") (hx-target . "#chiccup-input") (hx-swap . "outerHTML")) "Form"]
+           (@ (hx-get "/playground/form") (hx-target "#chiccup-input") (hx-swap "outerHTML")) "Form"]
           [button.text-sm.bg-teal-100.text-teal-700.px-3.py-1.rounded.hover:bg-teal-200
-           ((hx-get . "/playground/list") (hx-target . "#chiccup-input") (hx-swap . "outerHTML")) "List"]]]
-        [form ((hx-post . "/playground/render") (hx-target . "#html-preview"))
+           (@ (hx-get "/playground/list") (hx-target "#chiccup-input") (hx-swap "outerHTML")) "List"]]]
+        [form (@ (hx-post "/playground/render") (hx-target "#html-preview"))
 	      ,(chiccup-csrf-hidden-input)
               [textarea.w-full.h-80.p-3.border.rounded.font-mono.text-sm.resize-none.focus:outline-none.focus:ring-2.focus:ring-teal-500#chiccup-input
-               ((name . "chiccup") (placeholder . "Try editing the Chiccup code...")
-		(hx-get . "/playground/card") (hx-trigger . "load") (hx-swap . "outerHTML") (hx-target . "#chiccup-input"))]
+               (@ (name "chiccup") (placeholder "Try editing the Chiccup code...")
+		  (hx-get "/playground/card") (hx-trigger "load")
+		  (hx-swap "outerHTML") (hx-target "#chiccup-input"))]
          [.mt-3
           [button.bg-teal-600.text-white.px-4.py-2.rounded.hover:bg-teal-700.font-semibold
-           ((type . "submit")) "Render Preview"]]]]
+           (@ (type "submit")) "Render Preview"]]]]
        [div
         [h3.text-lg.font-semibold.text-teal-900.mb-3 "Live Preview"]
         [.w-full.h-80.p-3.border.rounded.bg-gray-50.overflow-auto
          [\#html-preview
           [.text-center.text-gray-500.py-8 "Click 'Render Preview' to see the output"]]]]]
       [p.text-sm.text-teal-600.mt-4.text-center
-       "✨ This playground uses real Schematra server-side rendering - what you see is what you get!"]]
+       "✨ Live Chiccup rendering! Edit the code above and watch HTML structure mirror your data structure in real-time."]]
      
      [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center.mt-12#see-more-examples "See More Examples"]
      [.space-y-6.sm:space-y-8
-      ,(code-box "Middleware Magic" ex2 "Compose powerful middleware for logging, authentication, and more. Each middleware is just a simple function.")
-      ,(code-box "OAuth2 Authentication" ex5 "Add Google OAuth2 login to your app with oauthtoothy. Complete social authentication in under 20 lines.")
-      ,(code-box "Chiccup Power" ex3 "HTML templates that look like your data structures. Map over lists, compose functions, and build UIs functionally.")
-      ,(code-box "JSON APIs Made Easy" ex4 "Write APIs that work with data, not strings. send-json-response handles serialization and headers automatically.")]]])
+      ,(code-box "Chiccup Components" ex3 "Build dynamic UIs with pure functions. Map over data, compose components, and create interactive interfaces that feel natural.")
+      ,(code-box "Simple Middleware" ex2 "Compose powerful middleware for logging, authentication, and more. Each middleware is just a simple function.")
+      ,(code-box "Complete Web App" ex1 "A full authentication flow with sessions, forms, and redirects. Notice how natural HTML generation feels with Chiccup.")
+      ,(code-box "JSON APIs Made Easy" ex4 "Write APIs that work with data, not strings. send-json-response handles serialization and headers automatically.")
+      ,(code-box "OAuth2 Authentication" ex5 "Add Google OAuth2 login to your app with oauthtoothy. Complete social authentication in under 20 lines.")]]])
 
 (static "/static" "./public")
 
@@ -473,28 +349,28 @@ SCHEMATRA
         \"Learn More\"]]]]")
     (form . "[.max-w-md.mx-auto.bg-white.p-6.rounded-lg.shadow-md
   [h2.text-xl.font-bold.mb-4.text-gray-900 \"Contact Form\"]
-  [form ((action . \"/submit\") (method . \"POST\"))
+  [form (@ (action \"/submit\") (method \"POST\"))
     [.mb-4
       [label.block.text-gray-700.text-sm.font-bold.mb-2 \"Name\"]
       [input.shadow.border.rounded.w-full.py-2.px-3.text-gray-700.focus:outline-none.focus:shadow-outline 
-        ((type . \"text\") (name . \"name\") (placeholder . \"Your Name\"))]]
+        (@ (type \"text\") (name \"name\") (placeholder \"Your Name\"))]]
     [.mb-4
       [label.block.text-gray-700.text-sm.font-bold.mb-2 \"Email\"]
       [input.shadow.border.rounded.w-full.py-2.px-3.text-gray-700.focus:outline-none.focus:shadow-outline
-        ((type . \"email\") (name . \"email\") (placeholder . \"your@email.com\"))]]
+        (@ (type \"email\") (name \"email\") (placeholder \"your@email.com\"))]]
     [button.bg-blue-500.hover:bg-blue-700.text-white.font-bold.py-2.px-4.rounded.focus:outline-none.focus:shadow-outline
       \"Submit\"]]]")
     (list . "[.max-w-md.mx-auto.bg-white.p-6.rounded-lg.shadow-md
   [h2.text-xl.font-bold.mb-4.text-gray-900 \"Todo List\"]
   [ul.divide-y.divide-gray-200
     [li.py-4.flex.items-center.space-x-3
-      [input.h-4.w-4.text-teal-600.rounded ((type . \"checkbox\") (checked . \"true\"))]
+      [input.h-4.w-4.text-teal-600.rounded (@ (type \"checkbox\") (checked \"true\"))]
       [span.flex-1.text-gray-900 \"Learn Chiccup syntax\"]]
     [li.py-4.flex.items-center.space-x-3
-      [input.h-4.w-4.text-teal-600.rounded ((type . \"checkbox\"))]
+      [input.h-4.w-4.text-teal-600.rounded (@ (type \"checkbox\"))]
       [span.flex-1.text-gray-500 \"Build amazing web apps\"]]
     [li.py-4.flex.items-center.space-x-3
-      [input.h-4.w-4.text-teal-600.rounded ((type . \"checkbox\"))]
+      [input.h-4.w-4.text-teal-600.rounded (@ (type \"checkbox\"))]
       [span.flex-1.text-gray-500 \"Deploy with Schematra\"]]]
   [.mt-4
     [button.bg-green-500.hover:bg-green-700.text-white.font-bold.py-2.px-4.rounded
@@ -504,10 +380,10 @@ SCHEMATRA
 (get ("/playground/:example")
      (let* ((example-name (alist-ref "example" (current-params) equal?))
             (example-code (alist-ref (string->symbol example-name) playground-examples)))
-       (ccup/html
+       (ccup->html
         (if example-code
             `[textarea.w-full.h-80.p-3.border.rounded.font-mono.text-sm.resize-none.focus:outline-none.focus:ring-2.focus:ring-teal-500#chiccup-input
-              ((name . "chiccup") (placeholder . "Try editing the Chiccup code..."))
+              (@ (name "chiccup") (placeholder "Try editing the Chiccup code..."))
               ,example-code]
             `[div#chiccup-input.w-full.h-80.p-3.border.rounded.bg-red-50.text-red-600.flex.items-center.justify-center
               "Example not found"]))))
@@ -518,15 +394,15 @@ SCHEMATRA
         (if chiccup-code
             (let ((cleaned-code (string-trim chiccup-code)))
               (condition-case
-               (ccup/html (with-input-from-string cleaned-code read))
-               (e () (ccup/html 
+               (ccup->html (with-input-from-string cleaned-code read))
+               (e () (ccup->html 
                       `[.text-red-600.p-4.bg-red-50.rounded.border.border-red-200
                         [h4.font-bold "Syntax Error"]
                         [p "Invalid Chiccup syntax. Please check your brackets and formatting."]]))))
-            (ccup/html `[p "No code provided"]))))
+            (ccup->html `[p "No code provided"]))))
 
 (get ("/")
-     (ccup/html (layout (landing-page))))
+     (ccup->html (layout (landing-page))))
 
 (get ("/api")
      (redirect "https://github.com/schematra/schematra"))

@@ -1,6 +1,6 @@
 # Schematra Documentation
 
-A modern web framework for Scheme that combines simplicity with power.
+A modern web framework for Scheme that lets you write web apps the way you think.
 
 ## Table of Contents
 
@@ -8,7 +8,7 @@ A modern web framework for Scheme that combines simplicity with power.
 - [Quick Reference](#quick-reference)
 - [Getting Started](#getting-started)
 - [Core Concepts](#core-concepts)
-- [Chiccup Templating](#chiccup-templating)
+- [Chiccup HTML Generation](#chiccup-html-generation)
 - [Middleware System](#middleware-system)
 - [OAuth2 Authentication (Oauthtoothy)](#oauth2-authentication-oauthtoothy)
 - [API Reference](#api-reference)
@@ -18,16 +18,17 @@ A modern web framework for Scheme that combines simplicity with power.
 
 ## What is Schematra?
 
-Schematra is a lightweight, expressive web framework for CHICKEN Scheme inspired by Sinatra. It brings the elegance of Lisp to web development with a focus on simplicity and developer productivity.
+Schematra is a lightweight, expressive web framework for CHICKEN Scheme inspired by Sinatra. Express HTML as data with Chiccup, build components that compose naturally, and create powerful middleware with simple functions.
 
 ### Key Features
 
-- **Minimal boilerplate** - Get a web server running with just a few lines of code
-- **Chiccup templating** - Write HTML using Lisp syntax with built-in CSS class support
+- **Minimal boilerplate** - Get a web app running with just a few lines of code
+- **Chiccup HTML generation** - S-expressions for HTML with syntactic sugar - your HTML structure mirrors your data structure
 - **Flexible routing** - Sinatra-style route definitions with URL parameters
 - **Built-in sessions** - Cookie-based session management out of the box
 - **Middleware support** - Extensible request/response processing pipeline
 - **Static file serving** - Serve CSS, JavaScript, and assets effortlessly
+- **Compile to a binary** - Because Schematra runs on CHICKEN, you can create a static or dynamically linked binary that makes distribution & release a breeze.
 
 ### Who is it for?
 
@@ -226,9 +227,9 @@ symbol keys:
            (ccup->html `[p "No search query provided"]))))
 ```
 
-## Chiccup HTML rendering
+## Chiccup HTML Generation
 
-Chiccup allows you to write HTML using Lisp syntax with CSS class integration. Chiccup is built on top of sxml-transforms, converting your chiccup syntax to SXML and then to HTML. You can use `ccup->sxml` to get the intermediate SXML representation and leverage the full power of the sxml-transforms ecosystem for advanced transformations.
+Chiccup is S-expressions for HTML with syntactic sugar that makes writing HTML easier. Chiccup is built on top of sxml-transforms, converting your chiccup syntax to SXML and then to HTML. You can use `ccup->sxml` to get the intermediate SXML representation and leverage the full power of the sxml-transforms ecosystem for advanced transformations.
 
 ### Basic Syntax
 
@@ -344,6 +345,10 @@ CSS classes from selectors and attributes are automatically merged:
   `[ul.list-disc.ml-4
     ,@(map (lambda (item) `[li ,item]) items)])
 ```
+
+### Inspiration
+
+Chiccup is highly inspired and influenced by the [Hiccup project](https://github.com/weavejester/hiccup).
 
 ## Middleware System
 
