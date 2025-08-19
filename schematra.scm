@@ -63,7 +63,7 @@
   chiccup)
 
  (define version-major "0")
- (define version-minor "1")
+ (define version-minor "2")
  (define version-patch "1")
 
  ;;; Default virtual host pattern for Schematra routing
