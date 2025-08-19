@@ -21,10 +21,12 @@
   schematra-default-handler
   schematra-default-vhost
   ;; Procedures
-  get post put
+  ;; verbs & friends
+  get post put delete
   sse write-sse-data
   current-body
   current-params
+  ;; other utilities
   static
   add-resource! ;; used by the verb-routing macros
   halt redirect
@@ -54,7 +56,7 @@
   format
   uri-common
   (rename intarweb (headers intarweb:headers))
-  srfi-1
+  (rename srfi-1 (delete srfi1:delete))
   srfi-13
   srfi-18
   srfi-69
@@ -302,62 +304,63 @@
  ;;; identically to GET handlers in terms of parameter handling and responses.
  (define-verb post)
  (define-verb put)
+ (define-verb delete)
 
- ;;; Register a Server-Sent Events (SSE) endpoint
- ;;;
- ;;; Creates an SSE endpoint that can stream real-time data to web browsers.
- ;;; SSE provides a simple way to push data from server to client over a persistent
- ;;; HTTP connection, perfect for live updates, notifications, and real-time features.
- ;;;
- ;;; ### Parameters
- ;;;   - `path`: string - URL path for the SSE endpoint (e.g., "/events", "/chat/:room")
- ;;;   - `req`: symbol - Request parameter name (typically 'req')
- ;;;   - `body`: expressions - SSE handler body that manages the connection
- ;;;
- ;;; Unlike regular handlers, SSE handlers typically run in a loop to continuously
- ;;; send data. The handler should call `write-sse-data` to send events to the client.
- ;;;
- ;;; ### Automatic Headers
- ;;; The sse function automatically sets the required SSE headers:
- ;;;   - Content-Type: text/event-stream
- ;;;   - Cache-Control: no-cache
- ;;;   - Connection: keep-alive
- ;;;
- ;;; ### Client-Side Usage
- ;;; Connect to SSE endpoints using JavaScript EventSource or HTMX SSE extension:
- ;;;   
- ;;; **JavaScript:**
- ;;; ```javascript
- ;;; const eventSource = new EventSource('/events');
- ;;; eventSource.onmessage = function(event) {
- ;;;   console.log('Received:', event.data);
- ;;; };
- ;;; ```
- ;;;
- ;;; **HTMX:**
- ;;; ```html
- ;;; <div hx-ext="sse" sse-connect="/events" sse-swap="message"></div>
- ;;; ```
- ;;;
- ;;; ### Examples
- ;;; ```scheme
- ;;; ;;; Simple time server
- ;;; (sse ("/time" req)
- ;;;      (let loop ()
- ;;;        (write-sse-data (current-time-string) event: "time-update")
- ;;;        (thread-sleep! 1)
- ;;;        (loop)))
- ;;;
- ;;; ;;; Chat room with parameters
- ;;; (sse ("/chat/:room" req)
- ;;;      (let ((room (alist-ref "room" (current-params) equal?)))
- ;;;        (let loop ()
- ;;;          (let ((messages (get-room-messages room)))
- ;;;            (when (new-messages? messages)
- ;;;              (write-sse-data (format-message messages) event: "message"))
- ;;;            (thread-sleep! 1)
- ;;;            (loop)))))
- ;;; ```
+;;; Register a Server-Sent Events (SSE) endpoint
+;;;
+;;; Creates an SSE endpoint that can stream real-time data to web browsers.
+;;; SSE provides a simple way to push data from server to client over a persistent
+;;; HTTP connection, perfect for live updates, notifications, and real-time features.
+;;;
+;;; ### Parameters
+;;;   - `path`: string - URL path for the SSE endpoint (e.g., "/events", "/chat/:room")
+;;;   - `req`: symbol - Request parameter name (typically 'req')
+;;;   - `body`: expressions - SSE handler body that manages the connection
+;;;
+;;; Unlike regular handlers, SSE handlers typically run in a loop to continuously
+;;; send data. The handler should call `write-sse-data` to send events to the client.
+;;;
+;;; ### Automatic Headers
+;;; The sse function automatically sets the required SSE headers:
+;;;   - Content-Type: text/event-stream
+;;;   - Cache-Control: no-cache
+;;;   - Connection: keep-alive
+;;;
+;;; ### Client-Side Usage
+;;; Connect to SSE endpoints using JavaScript EventSource or HTMX SSE extension:
+;;;   
+;;; **JavaScript:**
+;;; ```javascript
+;;; const eventSource = new EventSource('/events');
+;;; eventSource.onmessage = function(event) {
+;;;   console.log('Received:', event.data);
+;;; };
+;;; ```
+;;;
+;;; **HTMX:**
+;;; ```html
+;;; <div hx-ext="sse" sse-connect="/events" sse-swap="message"></div>
+;;; ```
+;;;
+;;; ### Examples
+;;; ```scheme
+;;; ;;; Simple time server
+;;; (sse ("/time" req)
+;;;      (let loop ()
+;;;        (write-sse-data (current-time-string) event: "time-update")
+;;;        (thread-sleep! 1)
+;;;        (loop)))
+;;;
+;;; ;;; Chat room with parameters
+;;; (sse ("/chat/:room" req)
+;;;      (let ((room (alist-ref "room" (current-params) equal?)))
+;;;        (let loop ()
+;;;          (let ((messages (get-room-messages room)))
+;;;            (when (new-messages? messages)
+;;;              (write-sse-data (format-message messages) event: "message"))
+;;;            (thread-sleep! 1)
+;;;            (loop)))))
+;;; ```
  (define (sse path handler)
    (get (path)
         (current-response
