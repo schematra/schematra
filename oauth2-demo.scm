@@ -46,7 +46,7 @@
      (let ((auth (current-auth)))
        (if (alist-ref 'authenticated? auth)
 	   (begin
-	     (ccup/html `[h1 ,(string-append "welcome " (alist-ref 'name auth))]))
+	     (ccup->html `[h1 ,(string-append "welcome " (alist-ref 'name auth))]))
 	   ;; trigger the auth sequence
 	   (redirect "/auth/google"))))
 

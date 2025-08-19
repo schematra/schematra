@@ -281,6 +281,29 @@ You can add HTML attributes using the `@` syntax as the second element:
 ;; => <button class="btn primary" type="submit" disabled>Submit</button>
 ```
 
+#### Attribute Value Escaping
+
+Following security best practices from frameworks like React and Vue, **attribute values are automatically HTML-escaped** to prevent XSS attacks:
+
+```scheme
+;; Quotes and other HTML characters are escaped in attribute values
+`[div (@ (data-config "{\"theme\":\"dark\"}")) "Content"]
+;; => <div data-config="{&quot;theme&quot;:&quot;dark&quot;}">Content</div>
+
+;; This prevents XSS through crafted attribute values
+`[input (@ (value "User input with \"quotes\" & <tags>")) ""]
+;; => <input value="User input with &quot;quotes&quot; &amp; &lt;tags&gt;">
+```
+
+### Boolean Attributes
+
+Boolean attributes (attributes without values) are rendered correctly:
+
+```scheme
+`[input (@ (type "checkbox") (checked) (disabled))]
+;; => <input type="checkbox" checked disabled>
+```
+
 ### Conditional Attributes
 
 Use unquote-splicing (`,@`) to conditionally add attributes:

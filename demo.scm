@@ -1,6 +1,6 @@
 (import
  schematra
- sessions
+ schematra-session
  chiccup
  format
  intarweb
@@ -8,13 +8,13 @@
 )
 
 (define (html-layout title body)
-  (ccup/html
-   `[html (("lang" . "en"))
+  (ccup->html
+   `[html (@ (lang "en"))
 	  [head
-	   [meta (("charset" . "utf-8"))]
-	   [meta (("name" . "viewport") ("content" . "width=device-width, initial-scale=1"))]
+	   [meta (@ (charset "utf-8"))]
+	   [meta (@ (name "viewport") (content "width=device-width, initial-scale=1"))]
 	   [title ,title]
-	   [script (("src" . "https://cdn.tailwindcss.com"))]]
+	   [script (@ (src "https://cdn.tailwindcss.com"))]]
 	  [body ,body]]))
 
 (define welcome-page-content
@@ -77,10 +77,9 @@
 
 (get ("/users/:user-id/posts/:post-id")
      (let* ((params  (current-params))
-	    (user-id (alist-ref "user-id" params eq?))
-            (post-id (alist-ref "post-id" params eq?))
-	    (q       (alist-ref 'kk params)))
-       (log-dbg "[DBG] params: ~A" params)
+	    (user-id (alist-ref "user-id" params equal?))
+            (post-id (alist-ref "post-id" params equal?))
+	    (q       (alist-ref 'q params)))
        (format "User: ~A, Post: ~A, q: ~A\n" user-id post-id q)))
 
 (post ("/test")
@@ -95,21 +94,21 @@
      (send-json-response '((error . "something went wrong, I think"))))
 
 (get ("/tw-demo")
-     (ccup/html
+     (ccup->html
       `[html
-	[head [script (("src" . "https://cdn.tailwindcss.com"))]]
+	[head [script (@ (src "https://cdn.tailwindcss.com"))]]
 	[body.bg-gray-100.p-8 [h1.text-3xl.font-bold.text-blue-600 "Hello, Tailwind!"]]]))
 
 (get ("/htmx-demo")
-     (ccup/html
+     (ccup->html
       `[html
-	[head [script (("src" . "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]]
+	[head [script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]]
 	[body
-	 [button (("hx-get" . "/clicked") ("hx-target" . "#result")) "Click me!"]
+	 [button (@ (hx-get "/clicked") (hx-target "#result")) "Click me!"]
 	 [\#result]]]))
 
 (get ("/clicked")
-     (ccup/html `[p "Button was clicked!"]))
+     (ccup->html `[p "Button was clicked!"]))
 
 (get ("/test-halt")
      (session-set! "something" "useful")

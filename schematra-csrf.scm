@@ -55,7 +55,7 @@
    (base64-encode (blob->string (random-bytes size))))
 
  (define (chiccup-csrf-hidden-input)
-   `[input ((type . "hidden") (name . ,(csrf-form-field)) (value . ,(csrf-get-token)))])
+   `[input (@ (type "hidden") (name ,(symbol->string (csrf-form-field))) (value ,(csrf-get-token)))])
 
 ;;; Retrieves or generates a CSRF token for the current session.
 ;;;
