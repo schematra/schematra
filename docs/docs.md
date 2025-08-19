@@ -155,6 +155,28 @@ Schematra is perfect for:
    csi -s demo.scm
    ```
 
+### Import Notes
+
+**SRFI-1 Compatibility**: If you're using SRFI-1 and need its `delete` function alongside Schematra's HTTP DELETE verb, rename one on import:
+
+```scheme
+;; Option 1: Rename SRFI-1's delete (recommended)
+(import (rename srfi-1 (delete srfi1:delete))
+        schematra
+        chiccup)
+
+(delete "/users/:id" ...)  ; HTTP DELETE route
+(srfi1:delete 'x my-list)  ; Remove items from list
+
+;; Option 2: Rename Schematra's delete (if you use SRFI-1's delete more)
+(import (rename schematra (delete http-delete))
+        srfi-1
+        chiccup)
+
+(http-delete "/users/:id" ...)  ; HTTP DELETE route
+(delete 'x my-list)             ; Remove items from list
+```
+
 ### Your First App
 
 Create a file called `hello.scm`:
