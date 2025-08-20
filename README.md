@@ -29,9 +29,9 @@ A modern web framework for [CHICKEN Scheme](https://call-cc.org/) that lets you 
 ### Installation
 
 ```bash
-git clone https://github.com/rolandoam/schematra
-cd schematra
-chicken-install
+chicken-install schematra
+# if you need chiccup, session support & oauth2:
+chicken-install chiccup schematra-session oauthtoothy
 ```
 
 ### Simple Web App with Chiccup

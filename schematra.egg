@@ -3,26 +3,20 @@
 ((synopsis
   "Schematra is a minimalistic web server built on top of spiffy")
  (author "Rolando Abarca")
- (license "GPL3")
+ (license "BSD")
  (category web)
  (dependencies spiffy
-	       format
-	       openssl
-	       message-digest
-	       hmac sha2 base64
-	       http-client medea
 	       nrepl
                srfi-1
                srfi-13
 	       srfi-18
                srfi-69
+	       medea
+	       ;; chiccup
 	       sxml-transforms)
  (component-options
   (csc-options "-O3" "-d0"))
- (components (extension chiccup)
-	     (extension schematra)
-	     (extension schematra-session)
+ (components (extension schematra)
 	     (extension schematra-csrf)
-	     (extension schematra-body-parser)
-	     (extension oauthtoothy)))
+	     (extension schematra-body-parser)))
 

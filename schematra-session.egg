@@ -1,0 +1,16 @@
+;;; schematra-session.egg -*- scheme -*-
+
+((synopsis
+  "Session support for Schematra")
+ (author "Rolando Abarca")
+ (license "BSD")
+ (category web)
+ (dependencies message-digest
+	       hmac
+	       sha2
+	       base64
+	       srfi-69
+	       schematra)
+ (component-options
+  (csc-options "-O3" "-d0"))
+ (components (extension schematra-session)))

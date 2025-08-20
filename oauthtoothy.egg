@@ -1,0 +1,18 @@
+;;; oauthtoothy.egg -*- scheme -*-
+
+((synopsis
+  "Oauth2 support for Schematra")
+ (author "Rolando Abarca")
+ (license "BSD")
+ (category web)
+ (dependencies schematra
+	       openssl
+	       http-client
+	       intarweb
+	       uri-common
+	       medea
+	       schematra
+	       schematra-session)
+ (component-options
+  (csc-options "-O3" "-d0"))
+ (components (extension oauthtoothy)))

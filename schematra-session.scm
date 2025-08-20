@@ -49,7 +49,6 @@
   chicken.condition
   chicken.port
   chicken.string
-  format
   srfi-69
   message-digest
   hmac sha2 base64

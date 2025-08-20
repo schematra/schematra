@@ -1,0 +1,13 @@
+;;; chiccup.egg -*- scheme -*-
+
+((synopsis
+  "Chiccup - HTML generation using sxml-transforms")
+ (author "Rolando Abarca")
+ (license "BSD")
+ (category web)
+ (dependencies srfi-1
+	       srfi-13
+	       sxml-transforms)
+ (component-options
+  (csc-options "-O3" "-d0"))
+ (components (extension chiccup)))
