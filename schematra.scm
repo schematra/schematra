@@ -66,21 +66,48 @@
   chicken.pathname
   chicken.file.posix
   chicken.time.posix
+  chicken.format
   medea ;; for send-json
   sendfile
   spiffy
-  format
   uri-common
   (rename intarweb (headers intarweb:headers))
   (rename srfi-1 (delete srfi1:delete))
-  srfi-13
+  srfi-13 ;; string-join & others
   srfi-18
   srfi-69
   chiccup)
 
- (define version-major "0")
- (define version-minor "2")
- (define version-patch "1")
+
+ (import-for-syntax chicken.string) ;; string-split
+ ;; read version for release-info
+ (define-syntax define-version-constants
+   (er-macro-transformer
+    (lambda (form rename compare)
+      (define (read-version)
+	(with-input-from-file "schematra.release-info"
+          (lambda ()
+            (let loop ((x (read)))
+              (cond
+               ((eof-object? x)
+		(error "release not found in schematra.release-info"))
+               ((and (pair? x) (eq? (car x) 'release))
+		(let* ((ver (cadr x))
+                       (parts (string-split ver "."))
+                       (maj (string->number (list-ref parts 0)))
+                       (min (string->number (list-ref parts 1)))
+                       (pat (string->number (list-ref parts 2))))
+                  (values ver maj min pat)))
+               (else (loop (read))))))))
+      (let-values (((ver maj min pat) (read-version)))
+	`(begin
+           (define-constant version-string ,ver)
+           (define-constant version-major  ,maj)
+           (define-constant version-minor  ,min)
+           (define-constant version-patch  ,pat))))))
+
+ ;; Expands at compile time; embeds literals:
+ (define-version-constants)
 
  ;; Default virtual host pattern for Schematra routing
  ;;
@@ -246,7 +273,7 @@
                                    string-path)))
      normalized-path))
 
- (import-for-syntax srfi-13)
+ (import-for-syntax srfi-13) ;; string-upcase in define-verb
  (define-syntax define-verb
    (er-macro-transformer
     (lambda (exp rename compare)
@@ -640,7 +667,7 @@
         status: status
         headers: (intarweb:headers new-headers (response-headers response))))]
     [else
-     (current-body (format #f "Error: response type not supported (~A)" tuple))
+     (current-body (format "Error: response type not supported (~A)" tuple))
      (update-response
       response
       status: 'error)]))
