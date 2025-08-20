@@ -9,12 +9,12 @@ RUN curl -LO "https://code.call-cc.org/releases/${CHICKEN_VERSION}/chicken-${CHI
     && cd "chicken-${CHICKEN_VERSION}" \
     && make && make install
 # install dependencies
-COPY parse-deps.scm schematra.egg /schematra/
-RUN chicken-install $(csi -s /schematra/parse-deps.scm)
+WORKDIR /schematra
+COPY parse-deps.scm *.egg /schematra/
+RUN chicken-install $(csi -s parse-deps.scm)
 # Now install schematra
 COPY . /schematra
 
-WORKDIR /schematra
 RUN chicken-install
 RUN csc -O2 -d0 schematra-web.scm
 
