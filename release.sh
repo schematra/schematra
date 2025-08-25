@@ -44,19 +44,24 @@ for egg_version in "${EGGS[@]}"; do
     git archive --format=tar.gz --prefix=${EGG}-${VERSION}/ HEAD:eggs/${EGG} > ${EGG}-${VERSION}.tar.gz
     
     # Check if tag already exists
-    if git rev-parse ${EGG}-v${VERSION} >/dev/null 2>&1; then
-        echo "  Warning: Tag ${EGG}-v${VERSION} already exists, skipping..."
+    if git rev-parse ${EGG}-${VERSION} >/dev/null 2>&1; then
+        echo "  Warning: Tag ${EGG}-${VERSION} already exists, skipping..."
         continue
     fi
     
     # Tag the commit
-    echo "  Creating tag ${EGG}-v${VERSION}..."
-    git tag ${EGG}-v${VERSION}
+    echo "  Creating tag ${EGG}-${VERSION}..."
+    git tag ${EGG}-${VERSION}
     
     # Create GitHub release (if gh is available)
     if command -v gh &> /dev/null; then
         echo "  Creating GitHub release..."
-        gh release create ${EGG}-v${VERSION} ${EGG}-${VERSION}.tar.gz --title "${EGG} v${VERSION}" --notes "Release ${EGG} version ${VERSION}"
+        if gh release create ${EGG}-${VERSION} ${EGG}-${VERSION}.tar.gz --title "${EGG} v${VERSION}" --notes "Release ${EGG} version ${VERSION}"; then
+            echo "  ✓ GitHub release created successfully"
+        else
+            echo "  ✗ Failed to create GitHub release"
+            echo "  You can manually create a release and upload ${EGG}-${VERSION}.tar.gz"
+        fi
     else
         echo "  GitHub CLI not available, skipping release creation"
         echo "  You can manually create a release and upload ${EGG}-${VERSION}.tar.gz"
