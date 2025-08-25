@@ -6,17 +6,15 @@
  (license "BSD")
  (category web)
  (dependencies spiffy
+	       base64
 	       nrepl
                srfi-1
                srfi-13
 	       srfi-18
                srfi-69
-	       medea
-	       ;; chiccup
-	       sxml-transforms)
+	       medea)
  (component-options
   (csc-options "-O3" "-d0"))
  (components (extension schematra)
 	     (extension schematra-csrf)
 	     (extension schematra-body-parser)))
-

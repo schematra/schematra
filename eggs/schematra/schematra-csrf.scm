@@ -46,7 +46,7 @@
  (import
   chicken.base
   chicken.blob
-  openssl.random
+  chicken.random
   base64
   intarweb
   spiffy ;; current-request

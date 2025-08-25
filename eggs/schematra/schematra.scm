@@ -49,6 +49,7 @@
   log-err log-dbg
   cookie-set! cookie-delete! cookie-ref
   use-middleware!
+  reset-middleware-stack! ;; prob only useful when in repl mode
   request-body-string
   send-json-response
   schematra-install
@@ -797,6 +798,9 @@
  ;; middleware
  (define middleware-stack '())
 
+ (define (reset-middleware-stack!)
+   (set! middleware-stack '()))
+
  (define (use-middleware! middleware)
    (set! middleware-stack (append middleware-stack (list middleware))))
 
@@ -950,15 +954,17 @@
  ;; It supports both production and development modes with different behaviors.
  ;;
  ;; ### Parameters
- ;;   - `development?`: boolean - Enable development mode (default: #f)
  ;;   - `port`: integer - HTTP server port (default: 8080)  
+ ;;   - `development?`: boolean - Enable development mode (default: #f)
+ ;;   - `repl?`: boolean - Enabled NREPL, only if dev mode is true (default: #f)
  ;;   - `repl-port`: integer - REPL port for development mode (default: 1234)
  ;;
  ;; ### Development Mode
- ;; When `development?` is #t, the server runs in a separate thread and starts
- ;; an nREPL server on the specified repl-port for interactive development.
- ;; This allows you to connect with a REPL client and modify routes/handlers
- ;; while the server is running.
+ ;; When `development?` is #t, the server runs in a separate thread
+ ;; and starts an nREPL server on the specified repl-port for
+ ;; interactive development if `repl?` is also #t. This allows you to
+ ;; connect with a REPL client and modify routes/handlers while the
+ ;; server is running.
  ;;
  ;; **IMPORTANT:** Development mode requires the 'nrepl' egg to be installed:
  ;; ```bash
@@ -977,9 +983,9 @@
  ;; (schematra-start port: 3000)
  ;;
  ;; ;; Development mode with custom ports
- ;; (schematra-start development?: #t port: 8080 repl-port: 1234)
+ ;; (schematra-start development?: #t nrepl?: #t port: 3000 repl-port: 9999)
  ;; ```
- (define (schematra-start #!key (development? #f) (port 8080) (repl-port 1234) (bind-address #f) (nrepl? #t))
+ (define (schematra-start #!key (development? #f) (port 8080) (repl-port 1234) (bind-address #f) (nrepl? #f))
    (access-log ##sys#standard-output)
    (error-log ##sys#standard-error)
 

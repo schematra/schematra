@@ -238,7 +238,7 @@
 	  (normalized-user ((alist-ref 'user-info-parser provider) user-info))
 	  (user-id         (alist-ref 'id normalized-user)))
      (when (user-save-proc)
-       ((user-save-proc) user-id normalized-user))
+       ((user-save-proc) user-id normalized-user token))
 
      ;; store in session, only user-id
      (session-set! "user-id" (alist-ref 'id user-info))
