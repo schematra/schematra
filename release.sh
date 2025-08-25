@@ -53,6 +53,10 @@ for egg_version in "${EGGS[@]}"; do
     echo "  Creating tag ${EGG}-${VERSION}..."
     git tag ${EGG}-${VERSION}
     
+    # Push the tag to remote
+    echo "  Pushing tag to remote..."
+    git push origin ${EGG}-${VERSION}
+    
     # Create GitHub release (if gh is available)
     if command -v gh &> /dev/null; then
         echo "  Creating GitHub release..."
@@ -70,8 +74,5 @@ for egg_version in "${EGGS[@]}"; do
     echo "  ✓ ${EGG} v${VERSION} released"
     echo
 done
-
-echo "Pushing tags to remote..."
-git push origin --tags
 
 echo "All releases completed!"
