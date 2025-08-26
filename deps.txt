@@ -1,0 +1,1 @@
+sxml-transforms srfi-13 srfi-1 medea srfi-69 srfi-18 srfi-13 srfi-1 nrepl base64 spiffy srfi-69 base64 sha2 hmac message-digest base64 medea uri-common intarweb http-client openssl

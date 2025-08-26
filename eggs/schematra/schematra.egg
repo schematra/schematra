@@ -12,9 +12,9 @@
                srfi-13
 	       srfi-18
                srfi-69
+	       chiccup
 	       medea)
  (component-options
   (csc-options "-O3" "-d0"))
  (components (extension schematra)
-	     (extension schematra-csrf)
 	     (extension schematra-body-parser)))

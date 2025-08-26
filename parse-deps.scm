@@ -17,9 +17,11 @@
 	      (pair (assoc 'dependencies sexp))
 	      (deps (and pair (cdr pair))))
 	 (print (string-intersperse
-		 (filter (lambda (dep) (not (substring=? "schematra" dep)))
+		 (filter (lambda (dep) (and (not (string=? "chiccup" dep))
+					    (not (substring=? "schematra" dep))))
 			 (map symbol->string deps))))))
-     '("schematra.egg"
-       "schematra-session.egg"
-       "oauthtoothy.egg"
-       "chiccup.egg"))
+     '("eggs/chiccup/chiccup.egg"
+       "eggs/schematra/schematra.egg"
+       "eggs/schematra-session/schematra-session.egg"
+       "eggs/schematra-csrf/schematra-csrf.egg"
+       "eggs/oauthtoothy/oauthtoothy.egg"))

@@ -86,7 +86,8 @@
    (er-macro-transformer
     (lambda (form rename compare)
       (define (read-version)
-	(with-input-from-file "schematra.release-info"
+	;; release info at the root of the repo
+	(with-input-from-file "../../schematra.release-info"
           (lambda ()
             (let loop ((x (read)))
               (cond

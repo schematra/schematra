@@ -8,14 +8,20 @@ RUN curl -LO "https://code.call-cc.org/releases/${CHICKEN_VERSION}/chicken-${CHI
     && tar xzf "chicken-${CHICKEN_VERSION}.tar.gz" \
     && cd "chicken-${CHICKEN_VERSION}" \
     && make && make install
-# install dependencies
+# install dependencies earlier - faster builds for the common case
 WORKDIR /schematra
-COPY parse-deps.scm *.egg /schematra/
-RUN chicken-install $(csi -s parse-deps.scm)
-# Now install schematra
+COPY deps.txt /schematra/
+RUN chicken-install $(cat deps.txt)
+
+# Now install schematra & core eggs
 COPY . /schematra
 
-RUN chicken-install
+# Install all the eggs
+RUN bash -c "pushd eggs/chiccup && chicken-install && popd \
+          && pushd eggs/schematra && chicken-install && popd \
+          && pushd eggs/schematra-session && chicken-install && popd \
+          && pushd eggs/schematra-csrf && chicken-install && popd \
+          && pushd eggs/oauthtoothy && chicken-install"
 RUN csc -O2 -d0 schematra-web.scm
 
 CMD ["./schematra-web"]
