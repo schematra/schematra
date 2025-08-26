@@ -87,7 +87,7 @@
     (lambda (form rename compare)
       (define (read-version)
 	;; release info at the root of the repo
-	(with-input-from-file "../../schematra.release-info"
+	(with-input-from-file "schematra.release-info"
           (lambda ()
             (let loop ((x (read)))
               (cond
