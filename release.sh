@@ -39,6 +39,17 @@ for egg_version in "${EGGS[@]}"; do
         exit 1
     fi
     
+    # Update release-info file
+    RELEASE_INFO_FILE="eggs/$EGG/$EGG.release-info"
+    if [ ! -f "$RELEASE_INFO_FILE" ]; then
+        echo "Error: $RELEASE_INFO_FILE does not exist"
+        exit 1
+    fi
+    
+    echo "  Adding release to release-info file..."
+    # Append new release line to the file
+    echo "(release \"$VERSION\")" >> "$RELEASE_INFO_FILE"
+    
     # Create tarball
     echo "  Creating tarball..."
     git archive --format=tar.gz --prefix=${EGG}-${VERSION}/ HEAD:eggs/${EGG} > ${EGG}-${VERSION}.tar.gz
