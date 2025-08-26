@@ -12,3 +12,5 @@ Dockerfile
 *.build.sh
 *.install.sh
 schematra-web
+*.tar.gz
+docs/*.wiki
