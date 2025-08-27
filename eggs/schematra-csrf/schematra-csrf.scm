@@ -85,7 +85,7 @@
 
  ;; (generate-csrf-token)
  (define (generate-csrf-token #!optional (size 64))
-   (base64-encode (blob->string (random-bytes size))))
+   (base64-encode (random-bytes (make-string size))))
 
  (define (chiccup-csrf-hidden-input)
    `[input (@ (type "hidden") (name ,(symbol->string (csrf-form-field))) (value ,(csrf-get-token)))])
