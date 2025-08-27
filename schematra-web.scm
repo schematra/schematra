@@ -233,7 +233,7 @@ EXAMPLE
         [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "https://github.com/schematra/schematra?tab=readme-ov-file#contributing")) "Contribute"]]
         [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "https://raw.githubusercontent.com/schematra/schematra/refs/heads/main/LICENSE.md")) "License"]]]]]
      [.border-t.border-teal-700.mt-6.sm:mt-8.pt-6.sm:pt-8.text-center
-      [p.text-teal-300.text-xs.sm:text-sm "© 2025 Rolando Abarca. Released under the GNU General Public License v3.0"]]]])
+      [p.text-teal-300.text-xs.sm:text-sm "© 2025 Rolando Abarca. Released under BSD-3-Clause License - Schematra logo released under CC BY-NC 4.0"]]]])
 
 (define (layout page)
   `[html (@ (lang "en-US"))
