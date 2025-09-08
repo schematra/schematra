@@ -565,8 +565,8 @@ Creates OAuth2 authentication middleware that handles the complete authenticatio
 **Parameters:**
 - `providers`: list - List of OAuth2 provider configurations
 - `success-redirect`: string - URL to redirect to after successful authentication (default: "/")
-- `save-proc`: procedure or #f - Function to save user data (default: #f for no persistence)
-- `load-proc`: procedure or #f - Function to load user data (default: #f for no persistence)
+- `save-proc`: procedure or #f - Function to save user data: `(lambda (user-id provider-name user-data token) ...)` (default: #f for no persistence)
+- `load-proc`: procedure or #f - Function to load user data: `(lambda (user-id provider-name) ...)` (default: #f for no persistence)
 
 **Registered Routes:**
 For each provider named "example", automatically creates:
@@ -679,11 +679,15 @@ Oauthtoothy supports optional user data persistence through save and load proced
 ;; In-memory storage (for testing/development)
 (define user-store (make-hash-table))
 
-(define (save-user user-id user-data)
-  (hash-table-set! user-store user-id user-data))
+(define (save-user user-id provider-name user-data token)
+  (hash-table-set! user-store user-id 
+    `((user-data . ,user-data) 
+      (provider . ,provider-name)
+      (token . ,token))))
 
-(define (load-user user-id)
-  (hash-table-ref/default user-store user-id #f))
+(define (load-user user-id provider-name)
+  (let ((stored (hash-table-ref/default user-store user-id #f)))
+    (if stored (alist-ref 'user-data stored) #f)))
 ```
 
 ### Authentication Flow
@@ -705,10 +709,14 @@ Oauthtoothy supports optional user data persistence through save and load proced
 
 ;; User storage
 (define user-store (make-hash-table))
-(define (save-user user-id user-data)
-  (hash-table-set! user-store user-id user-data))
-(define (load-user user-id)
-  (hash-table-ref/default user-store user-id #f))
+(define (save-user user-id provider-name user-data token)
+  (hash-table-set! user-store user-id 
+    `((user-data . ,user-data) 
+      (provider . ,provider-name)
+      (token . ,token))))
+(define (load-user user-id provider-name)
+  (let ((stored (hash-table-ref/default user-store user-id #f)))
+    (if stored (alist-ref 'user-data stored) #f)))
 
 ;; Google user data parser
 (define (parse-google-user json-response)

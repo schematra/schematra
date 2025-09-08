@@ -167,8 +167,8 @@
  ;;   - user-info-parser: procedure - Function to normalize provider-specific user data
  ;;
  ;; Save/Load Procedures:
- ;;   save-proc: (lambda (user-id user-data) ...) - Called to persist user information
- ;;   load-proc: (lambda (user-id) ...) - Called to retrieve user information, should return
+ ;;   save-proc: (lambda (user-id provider-name user-data token) ...) - Called to persist user information
+ ;;   load-proc: (lambda (user-id provider-name) ...) - Called to retrieve user information, should return
  ;;              user data alist or #f if user not found
  ;;
  ;; Registered Routes:
@@ -220,13 +220,14 @@
      ;; should check what state of the auth cycle we're in, then
      ;; either pass or do something else
      (let* ((user-id (session-get "user-id"))
+	    (provider-name (session-get "oauth-provider-name"))
 	    (user-info (if (and user-id (user-load-proc))
-			   ((user-load-proc) user-id)
+			   ((user-load-proc) user-id provider-name)
 			   #f)))
        (parameterize ((current-auth (if user-id
 					`((user-id . ,user-id)
 					  (authenticated? . #t)
-					  ,@user-info)
+					  ,@(if user-info user-info '()))
 					`((authenticated? . #f)))))
 	 (next)))))
 
@@ -238,8 +239,9 @@
 	  (normalized-user ((alist-ref 'user-info-parser provider) user-info))
 	  (user-id         (alist-ref 'id normalized-user)))
      (when (user-save-proc)
-       ((user-save-proc) user-id normalized-user token))
+       ((user-save-proc) user-id (alist-ref 'name provider) normalized-user token))
 
-     ;; store in session, only user-id
+     ;; store in session: user-id & current provider name
      (session-set! "user-id" (alist-ref 'id user-info))
+     (session-set! "oauth-provider-name" (alist-ref 'name provider))
      (redirect success-redirect))))
