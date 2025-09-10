@@ -987,8 +987,9 @@
  ;; (schematra-start development?: #t nrepl?: #t port: 3000 repl-port: 9999)
  ;; ```
  (define (schematra-start #!key (development? #f) (port 8080) (repl-port 1234) (bind-address #f) (nrepl? #f))
-   (access-log ##sys#standard-output)
-   (error-log ##sys#standard-error)
+   ;; send both logs to current output
+   (access-log (current-output-port))
+   (error-log (current-output-port))
 
    ;; NOTE: figure out if we want to keep these params as arguments to
    ;; the start function or let the user set them as they want.
