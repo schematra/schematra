@@ -26,13 +26,13 @@
 
 (define (send-form)
   `[form.flex.gap-2
-    ({"hx-post" . "/send"}
-     {"hx-swap" . "none"}
-     {"hx-on::after-request" . "this.reset()"})
+    (@ (hx-post "/send")
+       (hx-swap "none")
+       (hx-on::after-request "this.reset()"))
     [input.flex-1.px-3.py-2.border.border-gray-300.rounded-md.focus:outline-none.focus:ring-2.focus:ring-blue-500.focus:border-transparent
-     ({"type" . "text"}
-      {"name" . "message"}
-      {"placeholder" . "Type your message..."})]
+     (@ (type "text")
+	(name "message")
+	(placeholder "Type your message..."))]
     [button.px-4.py-2.bg-blue-600.text-white.rounded-md.hover:bg-blue-700.focus:outline-none.focus:ring-2.focus:ring-blue-500.focus:ring-offset-2.transition-colors
      "Send"]])
 
@@ -42,23 +42,23 @@
 ;; By default spiffy allows up to 1024 simultaneous connections. You're using one on each SSE route.
 ;; To change the amount of max connections you can use the parameter `max-connections` (see: https://wiki.call-cc.org/eggref/5/spiffy#configuration-parameters)
 (get ("/")
-     (ccup/html
+     (ccup->html
       `[html
         [head
-         [script ({"src" . "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"})]
-         [script ({"src" . "https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.2"})]
-         [script (("src" . "https://cdn.tailwindcss.com"))]]
+         [script (@(src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]
+         [script (@(src "https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.2"))]
+         [script (@(src "https://cdn.tailwindcss.com"))]]
         [body.bg-gray-100.min-h-screen
-         ({"hx-ext" . "sse"})
+         (@(hx-ext "sse"))
          [.max-w-2xl.mx-auto.p-6
           [.bg-white.rounded-lg.shadow-lg.overflow-hidden
            [.bg-blue-600.text-white.p-4
             [h1.text-xl.font-bold "Live Chat"]]
            [.p-4
             [\#history.space-y-2.mb-4.h-64.overflow-y-auto.border.border-gray-200.rounded.p-3.bg-gray-50
-             ({"sse-connect" . "/chatroom"}
-              {"sse-swap" . "message"}
-              {"hx-swap" . "beforeend"})]]
+             (@((sse-connect "/chatroom")
+		(sse-swap "message")
+		(hx-swap "beforeend")))]]
            ,(send-form)]]]]))
 
 (post ("/send")
@@ -67,7 +67,7 @@
         ""))
 
 (define (render-msg msg)
-  (ccup/html
+  (ccup->html
    `[.p-2.my-2.bg-white.rounded.border-l-4.border-blue-500.shadow-sm
      [span.text-gray-800 ,msg]]))
 
@@ -95,4 +95,4 @@
        "done"))
 
 (schematra-install)
-(schematra-start development?: #t)
+(schematra-start development?: #f)
