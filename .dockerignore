@@ -5,12 +5,12 @@ Dockerfile
 
 .aider*
 *~
-*.import.scm
-*.so
-*.link
-*.static.o
-*.build.sh
-*.install.sh
+eggs/*/*.import.scm
+eggs/*/*.so
+eggs/*/*.link
+eggs/*/*.static.o
+eggs/*/*.build.sh
+eggs/*/*.install.sh
 schematra-web
 *.tar.gz
 docs/*.wiki

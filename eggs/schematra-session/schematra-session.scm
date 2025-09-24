@@ -49,6 +49,7 @@
   chicken.condition
   chicken.port
   chicken.string
+  (only spiffy log-to error-log)
   srfi-69
   message-digest
   hmac sha2 base64
@@ -222,7 +223,7 @@
           (alist->hash-table (with-input-from-string (base64-decode alist-base64) read))
           (make-hash-table)))
     (e (_exn) (begin
-                (log-err "Error deserializing cookie: ~A" cookie-value)
+                (log-to (error-log) "Error deserializing cookie: ~A" cookie-value)
                 (make-hash-table)))))
 
  ;; Retrieve a value from the current session.

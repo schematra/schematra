@@ -47,7 +47,6 @@
  static
  add-resource! ;; used by the verb-routing macros
  halt redirect
- log-err log-dbg
  cookie-set! cookie-delete! cookie-ref
  use-middleware!
  reset-middleware-stack! ;; prob only useful when in repl mode
@@ -71,8 +70,8 @@
  chicken.format
  medea ;; for send-json
  sendfile
- spiffy
  uri-common
+ spiffy
  (rename intarweb (headers intarweb:headers))
  (rename srfi-1 (delete srfi1:delete))
  srfi-13 ;; string-join & others
@@ -138,46 +137,6 @@
 ;;   A string containing the default welcome message
 (define (schematra-default-handler)
   "Welcome to Schematra, Sinatra's weird friend.")
-
-;; Log an error message to the error log
-;;
-;; Writes a formatted error message to the configured error log stream.
-;; By default, this writes to standard error (stderr). The error log destination
-;; can be configured using Spiffy's error-log parameter.
-;;
-;; ### Parameters
-;;   - `format`: string - Format string compatible with the format procedure
-;;   - `rest`: any - Additional arguments for the format string
-;;
-;; ### Examples
-;; ```scheme
-;; (log-err "Database connection failed: ~A" error-message)
-;; (log-err "Invalid user ID: ~A (expected number)" user-id)
-;; ```
-(define (log-err format . rest)
-  (apply log-to (error-log) format rest))
-
-;; Log a debug/access message to the access log
-;;
-;; Writes a formatted debug or access message to the configured access log stream.
-;; By default, this writes to standard output (stdout). The access log destination
-;; can be configured using Spiffy's access-log parameter.
-;;
-;; This is commonly used for request logging, debugging information, and general
-;; application status messages that don't indicate errors.
-;;
-;; ### Parameters
-;;   - `format`: string - Format string compatible with the format procedure
-;;   - `rest`: any - Additional arguments for the format string
-;;
-;; ### Examples
-;; ```scheme
-;; (log-dbg "Processing request for path: ~A" path)
-;; (log-dbg "User ~A logged in successfully" username)
-;; (log-dbg "Cache hit for key: ~A" cache-key)
-;; ```
-(define (log-dbg format . rest)
-  (apply log-to (access-log) format rest))
 
 (define (make-path-tree)
   `("/" ,schematra-default-handler))
@@ -824,10 +783,10 @@
                       (header-value 'x-sse-handler (response-headers (current-response)))))
          (thread-id (thread-name (current-thread))))
      (if is-sse
-         (log-err "[ERROR] SSE connection closed: ~A" exn)
+         (log-to (error-log) "[ERROR] SSE connection closed: ~A" exn)
          ;; only send status for other reqs
          (begin
-           (log-err (build-error-message exn chain #t))
+           (log-to (error-log) (build-error-message exn chain #t))
            (send-status 'internal-server-error (build-error-page exn)))))))
 
 (define current-body (make-parameter #f))
@@ -907,7 +866,10 @@
 (define (schematra-install)
   (let ((vhost (schematra-default-vhost)))
     (vhost-map
-     `((,vhost . ,(lambda (continue) (schematra-router continue)))))))
+     `((,vhost . ,(lambda (continue)
+		    (schematra-router continue)
+		    (flush-output (access-log))
+		    (flush-output (error-log))))))))
 
 
 (define schematra-logo
@@ -987,10 +949,17 @@
 ;; ;; Development mode with custom ports
 ;; (schematra-start development?: #t nrepl?: #t port: 3000 repl-port: 9999)
 ;; ```
-(define (schematra-start #!key (development? #f) (port 8080) (repl-port 1234) (bind-address #f) (nrepl? #f))
-  ;; send both logs to current output
-  (access-log (current-output-port))
-  (error-log (current-output-port))
+(define (schematra-start #!key
+			 (development? #f)
+			 (port 8080)
+			 (repl-port 1234)
+			 (bind-address #f)
+			 (nrepl? #f)
+			 access-port-or-file
+			 error-port-or-file)
+  ;; send both logs to current output by default
+  (access-log (or access-port-or-file (current-output-port)))
+  (error-log (or error-port-or-file (current-output-port)))
 
   ;; NOTE: figure out if we want to keep these params as arguments to
   ;; the start function or let the user set them as they want.

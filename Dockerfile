@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1-labs
 FROM alpine
 RUN apk update \
     && apk add build-base bash git curl openssl-dev hiredis hiredis-dev \
@@ -14,7 +15,7 @@ COPY deps.txt /schematra/
 RUN chicken-install $(cat deps.txt)
 
 # Now install schematra & core eggs
-COPY . /schematra
+COPY --parents eggs .
 
 # Install all the eggs
 RUN bash -c "pushd eggs/chiccup && chicken-install && popd \
@@ -22,6 +23,9 @@ RUN bash -c "pushd eggs/chiccup && chicken-install && popd \
           && pushd eggs/schematra-session && chicken-install && popd \
           && pushd eggs/schematra-csrf && chicken-install && popd \
           && pushd eggs/oauthtoothy && chicken-install"
-RUN csc -O2 -d0 schematra-web.scm
+
+COPY schematra-web.scm .
+COPY public ./public/
+RUN csc -O3 -d0 /schematra/schematra-web.scm
 
 CMD ["./schematra-web"]
