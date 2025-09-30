@@ -6,14 +6,9 @@ name: Docker
 # documentation.
 
 on:
-  schedule:
-    - cron: '33 20 * * *'
   push:
-    branches: [ "main" ]
-    # Publish semver tags as releases.
-    tags: [ 'v*.*.*' ]
-  pull_request:
-    branches: [ "main" ]
+    # Only trigger on release tags (pattern: egg-version)
+    tags: [ '*-*.*.*' ]
 
 env:
   # Use docker.io for Docker Hub if empty
