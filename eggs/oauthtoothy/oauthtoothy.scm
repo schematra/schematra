@@ -219,13 +219,13 @@
    (lambda (next)
      ;; should check what state of the auth cycle we're in, then
      ;; either pass or do something else
-     (let* ((user-id (session-get "user-id"))
-	    (provider-name (session-get "oauth-provider-name"))
-	    (user-info (if (and user-id (user-load-proc))
-			   ((user-load-proc) user-id provider-name)
+     (let* ((provider-id (session-get "oauth/provider-id"))
+	    (provider-name (session-get "oauth/provider-name"))
+	    (user-info (if (and provider-id (user-load-proc))
+			   ((user-load-proc) provider-id provider-name)
 			   #f)))
-       (parameterize ((current-auth (if user-id
-					`((user-id . ,user-id)
+       (parameterize ((current-auth (if provider-id
+					`((provider-id . ,provider-id)
 					  (authenticated? . #t)
 					  ,@(if user-info user-info '()))
 					`((authenticated? . #f)))))
@@ -237,11 +237,11 @@
 	  (token           (exchange-code-for-token code provider))
 	  (user-info       (get-user-info token provider))
 	  (normalized-user ((alist-ref 'user-info-parser provider) user-info))
-	  (user-id         (alist-ref 'id normalized-user)))
+	  (provider-id     (alist-ref 'provider-id normalized-user)))
      (when (user-save-proc)
-       ((user-save-proc) user-id (alist-ref 'name provider) normalized-user token))
+       ((user-save-proc) provider-id (alist-ref 'name provider) normalized-user token))
 
      ;; store in session: user-id & current provider name
-     (session-set! "user-id" (alist-ref 'id user-info))
-     (session-set! "oauth-provider-name" (alist-ref 'name provider))
+     (session-set! "oauth/provider-id" provider-id)
+     (session-set! "oauth/provider-name" (alist-ref 'name provider))
      (redirect success-redirect))))
