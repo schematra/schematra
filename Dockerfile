@@ -24,8 +24,9 @@ RUN bash -c "pushd eggs/chiccup && chicken-install && popd \
           && pushd eggs/schematra-csrf && chicken-install && popd \
           && pushd eggs/oauthtoothy && chicken-install"
 
-COPY schematra-web.scm .
-COPY public ./public/
-RUN csc -O3 -d0 /schematra/schematra-web.scm
+COPY web/*.scm ./web/
+COPY web/public ./web/public/
+RUN cd web && csc -O3 -d0 schematra-web.scm
 
+WORKDIR web
 CMD ["./schematra-web"]
