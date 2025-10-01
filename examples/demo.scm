@@ -46,9 +46,6 @@
 (define welcome-page
   (html-layout "SillyBot AI - The Silliest AI Ever" welcome-page-content))
 
-;; testing middleware
-(use-middleware! (session-middleware "my-secret-key"))
-
 (define (valid-token? header)
   (and (list? header)
        (= 1 (length header))
@@ -56,68 +53,72 @@
        (string=? (symbol->string (get-value (car header))) "bearer")
        (string=? (symbol->string (caar (get-params (car header)))) "secret")))
 
-;; detail of the headers content: https://wiki.call-cc.org/eggref/5/intarweb#headers
-(define (auth-middleware next)
-  (let* ((request (current-request))
-	 (auth-header (header-contents 'authorization (request-headers request))))
-    (if (and auth-header (valid-token? auth-header))
-        ;; Continue to next middleware or route
-        (next)
-        ;; Return error response
-        '(unauthorized "You don't belong here"))))
+(with-schematra-app (schematra/make-app)
+ ;; testing middleware
+ (use-middleware! (session-middleware "my-secret-key"))
+ 
+ ;; detail of the headers content: https://wiki.call-cc.org/eggref/5/intarweb#headers
+ (define (auth-middleware next)
+   (let* ((request (current-request))
+	  (auth-header (header-contents 'authorization (request-headers request))))
+     (if (and auth-header (valid-token? auth-header))
+         ;; Continue to next middleware or route
+         (next)
+         ;; Return error response
+         '(unauthorized "You don't belong here"))))
 
-;; (use-middleware! auth-middleware)
-(get ("/")
-     (let ((cookie-val (cookie-ref "test"))
-	   (session-val (session-get "foo")))
-       (display (format "Cookie: ~A; session[foo]: ~A\n" cookie-val session-val)))
-     (cookie-set! "test" "this is a test")
-     (session-set! "foo" 42)
-     welcome-page)
+ ;; (use-middleware! auth-middleware)
+ (get "/"
+      (let ((cookie-val (cookie-ref "test"))
+	    (session-val (session-get "foo")))
+	(display (format "Cookie: ~A; session[foo]: ~A\n" cookie-val session-val)))
+      (cookie-set! "test" "this is a test")
+      (session-set! "foo" 42)
+      welcome-page)
 
-(get ("/users/:user-id/posts/:post-id")
-     (let* ((params  (current-params))
-	    (user-id (alist-ref "user-id" params equal?))
-            (post-id (alist-ref "post-id" params equal?))
-	    (q       (alist-ref 'q params)))
-       (format "User: ~A, Post: ~A, q: ~A\n" user-id post-id q)))
+ (get "/users/:user-id/posts/:post-id"
+      (let* ((params  (current-params))
+	     (user-id (alist-ref "user-id" params equal?))
+             (post-id (alist-ref "post-id" params equal?))
+	     (q       (alist-ref 'q params)))
+	(format "User: ~A, Post: ~A, q: ~A\n" user-id post-id q)))
 
-(post ("/test")
-      (let* ((request (current-request))
-	     (body (request-body-string request))
-	     (content-type (header-value 'content-type (request-headers request)))
-	     (body-str (format "Body: ~A; content-type: ~A" body content-type)))
-	`(ok ,body-str ((content-type text/plain)
-			(cache-control (max-age . 3600))))))
+ (post "/test"
+       (let* ((request (current-request))
+	      (body (request-body-string request))
+	      (content-type (header-value 'content-type (request-headers request)))
+	      (body-str (format "Body: ~A; content-type: ~A" body content-type)))
+	 `(ok ,body-str ((content-type text/plain)
+			 (cache-control (max-age . 3600))))))
 
-(get ("/test-json")
-     (send-json-response '((error . "something went wrong, I think"))))
+ (get "/test-json"
+      (send-json-response '((error . "something went wrong, I think"))))
 
-(get ("/tw-demo")
-     (ccup->html
-      `[html
-	[head [script (@ (src "https://cdn.tailwindcss.com"))]]
-	[body.bg-gray-100.p-8 [h1.text-3xl.font-bold.text-blue-600 "Hello, Tailwind!"]]]))
+ (get "/tw-demo"
+      (ccup->html
+       `[html
+	 [head [script (@ (src "https://cdn.tailwindcss.com"))]]
+	 [body.bg-gray-100.p-8 [h1.text-3xl.font-bold.text-blue-600 "Hello, Tailwind!"]]]))
 
-(get ("/htmx-demo")
-     (ccup->html
-      `[html
-	[head [script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]]
-	[body
-	 [button (@ (hx-get "/clicked") (hx-target "#result")) "Click me!"]
-	 [\#result]]]))
+ (get "/htmx-demo"
+      (ccup->html
+       `[html
+	 [head [script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"))]]
+	 [body
+	  [button (@ (hx-get "/clicked") (hx-target "#result")) "Click me!"]
+	  [\#result]]]))
 
-(get ("/clicked")
-     (ccup->html `[p "Button was clicked!"]))
+ (get "/clicked"
+      (ccup->html `[p "Button was clicked!"]))
 
-(get ("/test-halt")
-     (session-set! "something" "useful")
-     (cookie-set! "foo" "bar" http-only: #t)
-     (halt 'ok "you're halted\n" `((content-type text/foo)))
-     '(ok "this should not be sent" ((x-foo-bar "some value"))))
+ (get "/test-halt"
+      (session-set! "something" "useful")
+      (cookie-set! "foo" "bar" http-only: #t)
+      (halt 'ok "you're halted\n" `((content-type text/foo)))
+      '(ok "this should not be sent" ((x-foo-bar "some value"))))
 
-;; serve our own directory, just for fun & giggles
-(static "/static" ".")
+ ;; serve our own directory, just for fun & giggles
+ (static "/static" ".")
 
-(schematra-install)
-(schematra-start development?: #t nrepl?: #f)
+ (schematra-install)
+ (schematra-start))

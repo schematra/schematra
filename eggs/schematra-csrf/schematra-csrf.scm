@@ -108,7 +108,7 @@
  ;;              (value ,token))))
  ;;
  ;; ;; Get token for AJAX requests
- ;; (get ("/api/token")
+ ;; (get "/api/token"
  ;;      (csrf-get-token))
  ;; ```
  (define (csrf-get-token)
@@ -159,7 +159,7 @@
  ;; (use-middleware! (csrf-middleware))
  ;;
  ;; ;; HTML form with CSRF token
- ;; (get ("/form")
+ ;; (get "/form"
  ;;      `(form (@ (method "POST") (action "/submit"))
  ;;             (input (@ (type "hidden")
  ;;                       (name ,(csrf-form-field))

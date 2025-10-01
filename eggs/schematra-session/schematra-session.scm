@@ -171,12 +171,12 @@
  ;; (use-middleware! (session-middleware "my-secret-key-12345"))
  ;;
  ;; ;; In route handlers, use session functions:
- ;; (get ("/login")
+ ;; (get "/login"
  ;;      (session-set! "user-id" "12345")
  ;;      (session-set! "username" "alice")
  ;;      "Logged in successfully")
  ;;
- ;; (get ("/profile")
+ ;; (get "/profile"
  ;;      (let ((user-id (session-get "user-id")))
  ;;        (if user-id
  ;;            (format "Welcome user ~A" user-id)
