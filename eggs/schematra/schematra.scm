@@ -53,6 +53,7 @@
  use-middleware!
  request-body-string
  send-json-response
+ schematra-route-request
  schematra-install
  schematra-start
  ) ; end export list
@@ -822,12 +823,15 @@
 (define (schematra/make-app #!optional config)
   (make-schematra-app '() '() (or config '())))
 
-;; route a request using a resource tree and middleware stack. Returns
-;; #t if handled, #f otherwise
-(define (route-request request resource-tree middleware-stack)
-  (let* ((headers (request-headers request))
-         (raw-cookies (header-values 'cookie headers))
+;; route a request using a resource tree and middleware stack for the
+;; current app. Returns #t if handled, #f otherwise
+(define (schematra-route-request request)
+  (let* ((app (current-app))
          (method (request-method request))
+	 (resource-tree (or (alist-ref method (schematra-app-resources app)) '()))
+	 (middleware-stack (schematra-app-middleware-stack app))
+	 (headers (request-headers request))
+         (raw-cookies (header-values 'cookie headers))
          (uri (request-uri request))
          (normalized-path (normalize-path (uri-path uri)))
          (resource (and resource-tree (find-resource normalized-path resource-tree))))
@@ -890,9 +894,8 @@
     (vhost-map
      `((,vhost . ,(lambda (continue)
                     (let* ((request       (current-request))
-                           (method        (request-method request))
-                           (resource-tree (or (alist-ref method (schematra-app-resources app)) '())))
-                      (unless (route-request request resource-tree (schematra-app-middleware-stack app))
+                           (method        (request-method request)))
+                      (unless (schematra-route-request request)
                         (continue))
                       (flush-output (access-log))
                       (flush-output (error-log)))))))))
