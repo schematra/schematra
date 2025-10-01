@@ -205,8 +205,8 @@
       (let* ((provider-name (alist-ref 'name provider))
 	     (callback-path (string-append (auth-base-url) "/auth/" provider-name "/callback"))
 	     (start-oauth-path (string-append "/auth/" provider-name)))
-	(get (callback-path) (oauthtoothy-callback-handler provider success-redirect))
-	(get (start-oauth-path)
+	(get callback-path (oauthtoothy-callback-handler provider success-redirect))
+	(get start-oauth-path
 	     (parameterize ((form-urlencoded-separator "&"))
 	       (let ((redirect-url (update-uri (uri-reference (alist-ref 'auth-url provider))
 					       query: `((client_id . ,(alist-ref 'client-id provider))
