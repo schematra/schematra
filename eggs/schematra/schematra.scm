@@ -38,18 +38,19 @@
  schematra-default-handler
  schematra-default-vhost
  ;; Procedures
- ;; verbs & friends
- get post put delete
  sse write-sse-data
  current-body
  current-params
+ current-app
+ with-schematra-app
+ schematra/make-app
+ ensure-current-app!
  ;; other utilities
  static
  add-resource! ;; used by the verb-routing macros
  halt redirect
  cookie-set! cookie-delete! cookie-ref
  use-middleware!
- reset-middleware-stack! ;; prob only useful when in repl mode
  request-body-string
  send-json-response
  schematra-install
@@ -59,6 +60,7 @@
 (import scheme)
 (import
  chicken.base
+ chicken.module   ;; export
  chicken.platform ;; chicken-version
  chicken.io
  chicken.condition
@@ -92,9 +94,9 @@
            (let loop ((x (read)))
              (cond
               ((eof-object? x)
-	       (error "release not found in schematra.release-info"))
+               (error "release not found in schematra.release-info"))
               ((and (pair? x) (eq? (car x) 'release))
-	       (let* ((ver (cadr x))
+               (let* ((ver (cadr x))
                       (parts (string-split ver "."))
                       (maj (string->number (list-ref parts 0)))
                       (min (string->number (list-ref parts 1)))
@@ -110,6 +112,8 @@
 
 ;; Expands at compile time; embeds literals:
 (define-version-constants)
+
+(define development-mode? #f)
 
 ;; Default virtual host pattern for Schematra routing
 ;;
@@ -140,9 +144,6 @@
 
 (define (make-path-tree)
   `("/" ,schematra-default-handler))
-
-;; resources tree based on the verb
-(define resources-tree-for-verb (make-hash-table))
 
 ;; find a resource based on a path on a tree. Returns the handler if
 ;; found, #f otherwise.
@@ -213,12 +214,11 @@
               (list target-segment #f (add-resource remaining-path (list (car remaining-path) #f) handler)))]))))
 
 ;; external version that can be leveraged by macros
-(define (add-resource! path http-verb handler)
-  (let* ((tree     (hash-table-ref/default resources-tree-for-verb http-verb (make-path-tree)))
-         (new-tree (add-resource (normalize-path (uri-path (uri-reference path))) tree handler)))
-    (hash-table-set! resources-tree-for-verb http-verb new-tree)))
-
-(define development-mode? #f)
+(define (add-resource! app path http-verb handler)
+  (let* ((resources (schematra-app-resources app))
+         (tree      (or (alist-ref http-verb resources) (make-path-tree)))
+         (new-tree  (add-resource (normalize-path (uri-path (uri-reference path))) tree handler)))
+    (schematra-app-resources-set! app (alist-update http-verb new-tree resources))))
 
 (define (normalize-path path-list)
   (let* ( ;; Ensure path-list is actually a list
@@ -235,17 +235,32 @@
                                   string-path)))
     normalized-path))
 
+(define current-app (make-parameter #f))
+
+(define (ensure-current-app!)
+  (unless (current-app) (error "No app context! use with-schematra-app to define routes or set (current-app) parameter")))
+
+(define-syntax with-schematra-app
+  (syntax-rules ()
+    ((_ app body ...)
+     (parameterize ((current-app app))
+       body ...))))
+
 (import-for-syntax srfi-13) ;; string-upcase in define-verb
 (define-syntax define-verb
   (er-macro-transformer
-   (lambda (exp rename compare)
-     (let* ((verb-name (cadr exp))
+   (lambda (x r c)
+     (let* ((verb-name (cadr x))
             (verb-symbol (string->symbol (string-upcase (symbol->string verb-name)))))
-       `(define-syntax ,verb-name
-          (syntax-rules ()
-            ((_ (path) body ...)
-             (let ((handler (lambda () body ...)))
-               (add-resource! path ',verb-symbol handler)))))))))
+       `(,(r 'begin)
+         (,(r 'export) ,verb-name)
+         (define-syntax ,verb-name
+           (syntax-rules ()
+             ((_ path body ...)
+              (,(r 'let) ((handler (,(r 'lambda) () body ...))
+                          (app (current-app)))
+               (ensure-current-app!)
+               (add-resource! app path ',verb-symbol handler))))))))))
 
 ;; Register a GET route handler
 ;;
@@ -278,7 +293,7 @@
 ;; ### Examples
 ;; ```scheme
 ;; ;; Simple static route
-;; (get ("/hello") "Hello, World!")
+;; (get "/hello" "Hello, World!")
 ;;
 ;; ;; Route with parameters
 ;; (get ("/users/:id")
@@ -367,7 +382,7 @@
 ;;            (loop)))))
 ;; ```
 (define (sse path handler)
-  (get (path)
+  (get path
        (current-response
         (update-response (current-response)
                          headers:
@@ -587,7 +602,7 @@
 ;; ```
 (define (static path-prefix directory)
   (let ((route-pattern (string-append path-prefix "/*")))
-    (get (route-pattern)
+    (get route-pattern
          (let* ((file-path (alist-ref "*" (current-params) equal?))
                 (full-path (make-pathname directory file-path)))
            ;; Security: prevent directory traversal
@@ -756,16 +771,13 @@
   (let ((output (json->string datum)))
     `(,status ,output ((content-type application/json)))))
 
-;; middleware
-(define middleware-stack '())
-
-(define (reset-middleware-stack!)
-  (set! middleware-stack '()))
-
 (define (use-middleware! middleware)
-  (set! middleware-stack (append middleware-stack (list middleware))))
+  (ensure-current-app!)
+  (let* ((app              (current-app))
+         (middleware-stack (schematra-app-middleware-stack app)))
+    (schematra-app-middleware-stack-set! app (append middleware-stack (list middleware)))))
 
-(define (apply-middleware-stack handler)
+(define (apply-middleware-stack middleware-stack handler)
   (let loop ((middlewares middleware-stack))
     (if (null? middlewares)
         (handler)
@@ -801,16 +813,24 @@
                                                   (proc p)))
                         #:binary))
 
-;; router
-(define (schematra-router continue)
-  (let* ((request (current-request))
-         (headers (request-headers request))
+(define-record schematra-app
+  resources        ;; alist with trees for verbs (used to be hash table)
+  middleware-stack ;; list of middleware
+  config           ;; additional config, optional
+  )
+
+(define (schematra/make-app #!optional config)
+  (make-schematra-app '() '() (or config '())))
+
+;; route a request using a resource tree and middleware stack. Returns
+;; #t if handled, #f otherwise
+(define (route-request request resource-tree middleware-stack)
+  (let* ((headers (request-headers request))
          (raw-cookies (header-values 'cookie headers))
          (method (request-method request))
          (uri (request-uri request))
          (normalized-path (normalize-path (uri-path uri)))
-         (route-handlers (hash-table-ref/default resources-tree-for-verb method #f))
-         (resource (and route-handlers (find-resource normalized-path route-handlers))))
+         (resource (and resource-tree (find-resource normalized-path resource-tree))))
     (if resource
         (parameterize ((request-cookies (alist->hash-table raw-cookies))
                        (response-cookies (make-hash-table))
@@ -821,7 +841,7 @@
             (current-params (append route-params (uri-query uri)))
             ;; this condition-case is here to handle halts that might happen mid-routing
             (condition-case
-             (let* ((response-tuple (apply-middleware-stack handler))
+             (let* ((response-tuple (apply-middleware-stack middleware-stack handler))
                     (orig-status (if (list? response-tuple) (car response-tuple) #f))
                     (old-headers (response-headers (current-response)))
                     (new-headers (intarweb:headers (cookies->alist (response-cookies))
@@ -845,9 +865,9 @@
                          (halt-headers (get-condition-property exn 'halt-condition 'headers))
                          (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies)))))
                     (current-response (update-response-with-tuple! (current-response) (list status body new-headers)))
-                    (send-response status: status body: body))])))
-        ;; resource not found, let if spiffy handle it
-        (continue))))
+                    (send-response status: status body: body))]))
+          #t)
+        #f)))
 
 ;; Install the Schematra router as a virtual host handler
 ;; 
@@ -864,13 +884,18 @@
 ;; (start-server port: 8080)
 ;; ```
 (define (schematra-install)
-  (let ((vhost (schematra-default-vhost)))
+  (let ((vhost (schematra-default-vhost))
+        (app   (current-app)))
+    (ensure-current-app!)
     (vhost-map
      `((,vhost . ,(lambda (continue)
-		    (schematra-router continue)
-		    (flush-output (access-log))
-		    (flush-output (error-log))))))))
-
+                    (let* ((request       (current-request))
+                           (method        (request-method request))
+                           (resource-tree (or (alist-ref method (schematra-app-resources app)) '())))
+                      (unless (route-request request resource-tree (schematra-app-middleware-stack app))
+                        (continue))
+                      (flush-output (access-log))
+                      (flush-output (error-log)))))))))
 
 (define schematra-logo
   "                                                .:::.
@@ -950,13 +975,13 @@
 ;; (schematra-start development?: #t nrepl?: #t port: 3000 repl-port: 9999)
 ;; ```
 (define (schematra-start #!key
-			 (development? #f)
-			 (port 8080)
-			 (repl-port 1234)
-			 (bind-address #f)
-			 (nrepl? #f)
-			 access-port-or-file
-			 error-port-or-file)
+                         (development? #f)
+                         (port 8080)
+                         (repl-port 1234)
+                         (bind-address #f)
+                         (nrepl? #f)
+                         access-port-or-file
+                         error-port-or-file)
   ;; send both logs to current output by default
   (access-log (or access-port-or-file (current-output-port)))
   (error-log (or error-port-or-file (current-output-port)))
