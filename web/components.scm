@@ -1,55 +1,6 @@
-;; Schematra - a very simple web framework for scheme inspired in
-;; Sinatra
-;; Copyright 2025 Rolando Abarca
-;;
-;; Redistribution and use in source and binary forms, with or without
-;; modification, are permitted provided that the following conditions
-;; are met:
-;;
-;; 1. Redistributions of source code must retain the above copyright
-;; notice, this list of conditions and the following disclaimer.
-;;
-;; 2. Redistributions in binary form must reproduce the above
-;; copyright notice, this list of conditions and the following
-;; disclaimer in the documentation and/or other materials provided
-;; with the distribution.
-;;
-;; 3. Neither the name of the copyright holder nor the names of its
-;; contributors may be used to endorse or promote products derived
-;; from this software without specific prior written permission.
-;;
-;; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-;; “AS IS” AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-;; LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-;; FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-;; COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
-;; INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-;; (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-;; SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-;; HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-;; STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-;; ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
-;; OF THE POSSIBILITY OF SUCH DAMAGE.
-
-(import
- chicken.port
- chicken.string
- chicken.pretty-print
- chicken.process-context
- srfi-13
- schematra
- schematra-session
- schematra-csrf
- schematra-body-parser
- chiccup)
-
-(use-middleware! (body-parser-middleware))
-(use-middleware! (session-middleware "secret"))
-(use-middleware! (csrf-middleware))
-
 (define (add-google-font  name #!optional (weight 400))
   `[link (@ (rel "stylesheet")
-	    (href ,(conc "https://fonts.googleapis.com/css2?family=" name "&display=swap")))])
+            (href ,(conc "https://fonts.googleapis.com/css2?family=" name "&display=swap")))])
 
 (define (add-style)
   `[style ".cookie-regular {
@@ -57,149 +8,6 @@
   font-weight: 400;
   font-style: normal;
 }"])
-
-(define ex1 '(#<<EXAMPLE
-;; Complete web app in just a few lines
-(import schematra chiccup sessions)
-
-(use-middleware! (session-middleware "secret-key"))
-
-(get ("/")
-     (let ((user (session-get "username")))
-       (if user
-           (ccup->html `[h1 ,(format "Welcome back, ~a!" user)])
-           (redirect "/login"))))
-
-(get ("/login")
-     (ccup->html
-      `[form (@ (method "POST") (action "/login"))
-        [input (@ (type "text") (name "username")
-                  (placeholder "Username"))]
-        [button "Login"]]))
-
-(post ("/login")
-      (let ((username (alist-ref "username" (current-params) equal?)))
-        (session-set! "username" username)
-        (redirect "/")))
-
-(schematra-install)
-(schematra-start)
-EXAMPLE
-))
-
-(define ex2 '(#<<EXAMPLE
-;; Powerful middleware for cross-cutting concerns
-(define (auth-middleware next)
-  (let ((token (cdr (assoc 'token (current-params)))))
-    (if (and token (valid-token? token))
-        (next)  ; Continue to route handler
-        '(unauthorized "Invalid token"))))
-
-(define (logging-middleware next)
-  (let* ((request (current-request))
-         (method (request-method request))
-         (path (uri-path (request-uri request))))
-    (log-dbg "~A ~A" method path)
-    (next)))
-
-(use-middleware! logging-middleware)
-(use-middleware! auth-middleware)
-
-;; Now all routes are logged and require auth
-(get ("/api/users")
-     '(ok "{\"users\": [...]}" 
-          ((content-type application/json))))
-EXAMPLE
-))
-
-(define ex3 '(#<<EXAMPLE
-;; Chiccup: HTML that looks like your data
-(define (render-todo todo)
-  `[.todo-item.p-4.border.rounded
-    [h3.font-bold ,(todo-title todo)]
-    [p.text-gray-600 ,(todo-description todo)]
-    [.flex.gap-2.mt-2
-     [button.bg-green-500.text-white.px-3.py-1.rounded
-      (@ (onclick ,(format "completeTodo(~a)" (todo-id todo))))
-      "Complete"]
-     [button.bg-red-500.text-white.px-3.py-1.rounded
-      (@ (onclick ,(format "deleteTodo(~a)" (todo-id todo))))
-      "Delete"]]])
-
-(get ("/todos")
-     (let ((todos (get-user-todos (session-get "user-id"))))
-       (ccup->html
-        `[.container.mx-auto.p-6
-          [h1.text-2xl.mb-4 "My Todos"]
-          ,@(map render-todo todos)])))
-EXAMPLE
-))
-
-(define ex4 '(#<<EXAMPLE
-;; JSON APIs made effortless
-(post ("/api/users")
-      (let* ((params (current-params))
-	     (name (alist-ref "name" params equal?))
-             (email (alist-ref "email" params equal?)))
-        (if (and name email (valid-email? email))
-            (let ((user-id (create-user! name email)))
-              (send-json-response
-                'created
-                `((id . ,user-id)
-                  (message . "User created")
-                  (email . ,email))))
-            (send-json-response
-              'bad-request
-              '((error . "Invalid name or email")
-                (required . ("name" "email")))))))
-
-(get ("/api/users")
-     (let ((users (get-all-users)))
-       (send-json-response 
-         'ok 
-         `((users . ,(map user->alist users))
-           (count . ,(length users))))))
-EXAMPLE
-))
-
-(define ex5 '(#<<EXAMPLE
-;; OAuth2 authentication with Google
-(import schematra chiccup sessions oauthtoothy)
-
-;; Provider configuration
-(define (google-provider #!key client-id client-secret)
-  `((name . "google")
-    (client-id . ,client-id)
-    (client-secret . ,client-secret)
-    (auth-url . "https://accounts.google.com/o/oauth2/auth")
-    (token-url . "https://oauth2.googleapis.com/token")
-    (user-info-url . "https://www.googleapis.com/oauth2/v2/userinfo")
-    (scopes . "profile email")
-    (user-info-parser . parse-google-user)))
-
-;; Install middleware
-(use-middleware! (session-middleware "secret-key"))
-(use-middleware!
- (oauthtoothy-middleware
-  (list (google-provider
-         client-id: (get-environment-variable "GOOGLE_CLIENT_ID")
-         client-secret: (get-environment-variable "GOOGLE_CLIENT_SECRET")))))
-
-;; Protected route
-(get ("/profile")
-     (let ((auth (current-auth)))
-       (if (alist-ref 'authenticated? auth)
-           (ccup->html `[h1 ,(string-append "Welcome, " 
-                                           (alist-ref 'name auth))])
-           (redirect "/auth/google"))))
-
-;; Logout
-(get ("/logout")
-     (session-destroy!)
-     (redirect "/"))
-EXAMPLE
-))
-
 
 
 (define (code-box title example subtext)
@@ -237,26 +45,26 @@ EXAMPLE
 
 (define (layout page)
   `[html (@ (lang "en-US"))
-	 [head
-	  [meta (@ (charset "utf-8"))]
-	  [meta (@ (name "viewport") (content "width=device-width, initial-scale=1"))]
-	  [title "Schematra - Scheme Web Framework"]
-	  [script (@ (src "https://cdn.tailwindcss.com"))]
-	  [script (@ (src "https://unpkg.com/htmx.org@1.9.10"))]
-	  [link (@ (rel "preconnect") (href "https://fonts.googleapis.com"))]
-	  [link (@ (rel "preconnect") (href "https://fonts.gstatic.com"))]
-	  ;; add highlight.js
-	  [link (@ (rel "stylesheet") (href "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css"))]
-	  ,(add-google-font "Cookie")
-	  ,(add-style)]
-	 [body.bg-teal-50.min-h-screen
-	  [.flex.flex-col.min-h-screen
-	   [main.flex-1.py-8.px-4.sm:px-6.lg:px-8
-	    ,page]]
-	  ,(footer)
-	  [script (@ (src "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"))]
-	  [script (@ (src "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/scheme.min.js"))]
-	  [script "hljs.highlightAll();"]]])
+         [head
+          [meta (@ (charset "utf-8"))]
+          [meta (@ (name "viewport") (content "width=device-width, initial-scale=1"))]
+          [title "Schematra - Scheme Web Framework"]
+          [script (@ (src "https://cdn.tailwindcss.com"))]
+          [script (@ (src "https://unpkg.com/htmx.org@1.9.10"))]
+          [link (@ (rel "preconnect") (href "https://fonts.googleapis.com"))]
+          [link (@ (rel "preconnect") (href "https://fonts.gstatic.com"))]
+          ;; add highlight.js
+          [link (@ (rel "stylesheet") (href "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css"))]
+          ,(add-google-font "Cookie")
+          ,(add-style)]
+         [body.bg-teal-50.min-h-screen
+          [.flex.flex-col.min-h-screen
+           [main.flex-1.py-8.px-4.sm:px-6.lg:px-8
+            ,page]]
+          ,(footer)
+          [script (@ (src "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"))]
+          [script (@ (src "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/scheme.min.js"))]
+          [script "hljs.highlightAll();"]]])
 
 (define (landing-page)
   `[.max-w-4xl.mx-auto.text-center
@@ -303,14 +111,15 @@ EXAMPLE
      [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center#getting-started "Getting Started"]
      [.bg-white.p-6.rounded-lg.shadow-sm.mb-8.border.border-teal-100
       [h3.text-lg.font-semibold.text-teal-900.mb-4 "Installation"]
-      [ol.list-decimal.list-inside.space-y-3.text-teal-700
-       [li "Clone the Schematra repository:"
-	   [pre.bg-gray-100.p-3.rounded.mt-2.text-sm.overflow-x-auto
-	    [code "git clone https://github.com/schematra/schematra.git"]]]
-       [li "Install Schematra and its dependencies:"
-	   [pre.bg-gray-100.p-3.rounded.mt-2.text-sm.overflow-x-auto
-	    [code "cd schematra && chicken-install"]]]
-       [li "Create your first app by creating a new file (e.g., " [code.bg-gray-100.px-2.py-1.rounded "app.scm"] ") and start coding!"]]]
+      [.mb-4
+       [h4.font-semibold.text-teal-800.mb-2 "Option 1: Install with CHICKEN"]
+       [pre.bg-gray-100.p-3.rounded.text-sm.overflow-x-auto
+        [code "chicken-install schematra"]]]
+      [.mb-4
+       [h4.font-semibold.text-teal-800.mb-2 "Option 2: Try with Docker"]
+       [pre.bg-gray-100.p-3.rounded.text-sm.overflow-x-auto
+        [code "docker run --rm -it ghcr.io/schematra/schematra:latest csi"]]]
+      [p.text-teal-700.mt-4 "Then create your first app by creating a new file (e.g., " [code.bg-gray-100.px-2.py-1.rounded "app.scm"] ") and start coding!"]]
      
      [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-2.text-center.mt-12 "Experience Chiccup"]
      [p.text-center.text-teal-600.mb-6.sm:mb-8 "See how HTML-as-data transforms the way you build components"]
@@ -327,14 +136,14 @@ EXAMPLE
           [button.text-sm.bg-teal-100.text-teal-700.px-3.py-1.rounded.hover:bg-teal-200
            (@ (hx-get "/playground/list") (hx-target "#chiccup-input") (hx-swap "outerHTML")) "List"]]]
         [form (@ (hx-post "/playground/render") (hx-target "#html-preview"))
-	      ,(chiccup-csrf-hidden-input)
+              ,(chiccup-csrf-hidden-input)
               [textarea.w-full.h-80.p-3.border.rounded.font-mono.text-sm.resize-none.focus:outline-none.focus:ring-2.focus:ring-teal-500#chiccup-input
                (@ (name "chiccup") (placeholder "Try editing the Chiccup code...")
-		  (hx-get "/playground/card") (hx-trigger "load")
-		  (hx-swap "outerHTML") (hx-target "#chiccup-input"))]
-         [.mt-3
-          [button.bg-teal-600.text-white.px-4.py-2.rounded.hover:bg-teal-700.font-semibold
-           (@ (type "submit")) "Render Preview"]]]]
+                  (hx-get "/playground/card") (hx-trigger "load")
+                  (hx-swap "outerHTML") (hx-target "#chiccup-input"))]
+              [.mt-3
+               [button.bg-teal-600.text-white.px-4.py-2.rounded.hover:bg-teal-700.font-semibold
+                (@ (type "submit")) "Render Preview"]]]]
        [div
         [h3.text-lg.font-semibold.text-teal-900.mb-3 "Live Preview"]
         [.w-full.h-80.p-3.border.rounded.bg-gray-50.overflow-auto
@@ -349,11 +158,9 @@ EXAMPLE
       ,(code-box "Simple Middleware" ex2 "Compose powerful middleware for logging, authentication, and more. Each middleware is just a simple function.")
       ,(code-box "Complete Web App" ex1 "A full authentication flow with sessions, forms, and redirects. Notice how natural HTML generation feels with Chiccup.")
       ,(code-box "JSON APIs Made Easy" ex4 "Write APIs that work with data, not strings. send-json-response handles serialization and headers automatically.")
+      ,(code-box "Testing Without a Server" ex6 "Test your routes in milliseconds with isolated app instances. No HTTP server needed—just pure, fast unit tests.")
       ,(code-box "OAuth2 Authentication" ex5 "Add Google OAuth2 login to your app with oauthtoothy. Complete social authentication in under 20 lines.")]]])
 
-(static "/static" "./public")
-
-;; Playground examples
 (define playground-examples 
   '((card . "[.max-w-md.mx-auto.bg-white.rounded-xl.shadow-md.overflow-hidden
   [.p-6
@@ -390,40 +197,3 @@ EXAMPLE
   [.mt-4
     [button.bg-green-500.hover:bg-green-700.text-white.font-bold.py-2.px-4.rounded
       \"Add New Todo\"]]]]")))
-
-;; Playground endpoints
-(get ("/playground/:example")
-     (let* ((example-name (alist-ref "example" (current-params) equal?))
-            (example-code (alist-ref (string->symbol example-name) playground-examples)))
-       (ccup->html
-        (if example-code
-            `[textarea.w-full.h-80.p-3.border.rounded.font-mono.text-sm.resize-none.focus:outline-none.focus:ring-2.focus:ring-teal-500#chiccup-input
-              (@ (name "chiccup") (placeholder "Try editing the Chiccup code..."))
-              ,example-code]
-            `[div#chiccup-input.w-full.h-80.p-3.border.rounded.bg-red-50.text-red-600.flex.items-center.justify-center
-              "Example not found"]))))
-
-(post ("/playground/render")
-      ;; got the 'chiccup param from the body, using the body-parser middleware
-      (let ((chiccup-code (alist-ref 'chiccup (current-params))))
-        (if chiccup-code
-            (let ((cleaned-code (string-trim chiccup-code)))
-              (condition-case
-               (ccup->html (with-input-from-string cleaned-code read))
-               (e () (ccup->html 
-                      `[.text-red-600.p-4.bg-red-50.rounded.border.border-red-200
-                        [h4.font-bold "Syntax Error"]
-                        [p "Invalid Chiccup syntax. Please check your brackets and formatting."]]))))
-            (ccup->html `[p "No code provided"]))))
-
-(get ("/")
-     (ccup->html (layout (landing-page))))
-
-(get ("/api")
-     (redirect "https://github.com/schematra/schematra"))
-
-(schematra-install)
-(let* ((environment (or (get-environment-variable "SCHEMATRA_ENV") "production"))
-       (dev-env?    (string=? environment "development")))
-  (schematra-start development?: dev-env? nrepl?: #f))
-
