@@ -4,9 +4,23 @@
 
 (define (add-style)
   `[style ".cookie-regular {
-  font-family: "Cookie", cursive;
+  font-family: \"Cookie\", cursive;
   font-weight: 400;
   font-style: normal;
+}
+
+/* Override prose styles for code blocks to work with highlight.js */
+.prose pre {
+  background-color: transparent !important;
+  color: rgb(36, 41, 46) !important;
+  padding: 0 !important;
+}
+
+.prose pre code {
+  background-color: transparent !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  padding: 0 !important;
 }"])
 
 
@@ -30,6 +44,7 @@
        [h3.text-lg.font-semibold.mb-4 "Resources"]
        [ul.space-y-2
         [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "https://github.com/schematra/schematra/blob/main/docs/docs.md")) "Documentation"]]
+        [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "/blog")) "Blog"]]
         [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "#see-more-examples")) "Examples"]]
         [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "/api")) "API Reference"]]
         [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "#community")) "Community"]]]]
@@ -43,20 +58,36 @@
      [.border-t.border-teal-700.mt-6.sm:mt-8.pt-6.sm:pt-8.text-center
       [p.text-teal-300.text-xs.sm:text-sm "© 2025 Rolando Abarca. Released under BSD-3-Clause License - Schematra logo released under CC BY-NC 4.0"]]]])
 
-(define (layout page)
-  `[html (@ (lang "en-US"))
-         [head
-          [meta (@ (charset "utf-8"))]
-          [meta (@ (name "viewport") (content "width=device-width, initial-scale=1"))]
-          [title "Schematra - Scheme Web Framework"]
-          [script (@ (src "https://cdn.tailwindcss.com"))]
-          [script (@ (src "https://unpkg.com/htmx.org@1.9.10"))]
-          [link (@ (rel "preconnect") (href "https://fonts.googleapis.com"))]
-          [link (@ (rel "preconnect") (href "https://fonts.gstatic.com"))]
-          ;; add highlight.js
-          [link (@ (rel "stylesheet") (href "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css"))]
-          ,(add-google-font "Cookie")
-          ,(add-style)]
+(define (layout page #!key (meta-title #f) (meta-description #f) (meta-image #f) (meta-url #f) (meta-type "website"))
+  (let ((title (or meta-title "Schematra - Scheme Web Framework"))
+        (description (or meta-description "A modern web framework for Scheme developers who value simplicity and elegance."))
+        (image (or meta-image "https://s3-us-west-1.amazonaws.com/assets.schematra.com/public/images/schematra-og.png"))
+        (url (or meta-url "https://schematra.com")))
+    `[html (@ (lang "en-US"))
+           [head
+            [meta (@ (charset "utf-8"))]
+            [meta (@ (name "viewport") (content "width=device-width, initial-scale=1"))]
+            [title ,title]
+            [meta (@ (name "description") (content ,description))]
+            ;; Open Graph tags
+            [meta (@ (property "og:title") (content ,title))]
+            [meta (@ (property "og:description") (content ,description))]
+            [meta (@ (property "og:image") (content ,image))]
+            [meta (@ (property "og:url") (content ,url))]
+            [meta (@ (property "og:type") (content ,meta-type))]
+            ;; Twitter Card tags
+            [meta (@ (name "twitter:card") (content "summary_large_image"))]
+            [meta (@ (name "twitter:title") (content ,title))]
+            [meta (@ (name "twitter:description") (content ,description))]
+            [meta (@ (name "twitter:image") (content ,image))]
+            [script (@ (src "https://cdn.tailwindcss.com?plugins=typography"))]
+            [script (@ (src "https://unpkg.com/htmx.org@1.9.10"))]
+            [link (@ (rel "preconnect") (href "https://fonts.googleapis.com"))]
+            [link (@ (rel "preconnect") (href "https://fonts.gstatic.com"))]
+            ;; add highlight.js with a lighter theme
+            [link (@ (rel "stylesheet") (href "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css"))]
+            ,(add-google-font "Cookie")
+            ,(add-style)]
          [body.bg-teal-50.min-h-screen
           [.flex.flex-col.min-h-screen
            [main.flex-1.py-8.px-4.sm:px-6.lg:px-8
@@ -64,7 +95,7 @@
           ,(footer)
           [script (@ (src "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"))]
           [script (@ (src "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/scheme.min.js"))]
-          [script "hljs.highlightAll();"]]])
+          [script "hljs.highlightAll();"]]]))
 
 (define (landing-page)
   `[.max-w-4xl.mx-auto.text-center
@@ -105,6 +136,16 @@
        [p.text-teal-700 "Compile to a single binary. No runtime dependencies, no complex deployments. If it runs C, it runs Schematra."]]]]
     
     
+    [.mt-12.sm:mt-16.text-left.px-4
+     [h2.text-2xl.sm:text-3xl.font-bold.text-teal-900.mb-6.sm:mb-8.text-center "Latest from the Blog"]
+     [.grid.grid-cols-1.md:grid-cols-2.gap-6.sm:gap-8.mb-8.sm:mb-12
+      ,@(let ((posts (get-blog-posts)))
+          (if (null? posts)
+              '([.col-span-2.text-center.text-teal-600 "No blog posts yet. Stay tuned!"])
+              (map blog-post-card (take posts (min 2 (length posts))))))]
+     [.text-center
+      [a.text-teal-600.hover:text-teal-700.font-semibold (@ (href "/blog")) "View All Posts →"]]]
+
     [.mt-12.sm:mt-16.text-left.px-4
      [.text-center.mb-8
       [p.text-lg.text-teal-600 "Ready to write web apps that make sense?"]]
@@ -197,3 +238,138 @@
   [.mt-4
     [button.bg-green-500.hover:bg-green-700.text-white.font-bold.py-2.px-4.rounded
       \"Add New Todo\"]]]]")))
+
+;; Blog functionality
+(define (blog-post-card post)
+  (let ((slug (alist-ref 'slug post))
+        (title (alist-ref 'title post))
+        (date (alist-ref 'date post))
+        (excerpt (alist-ref 'excerpt post))
+        (tags (alist-ref 'tags post)))
+    `[.bg-white.p-6.rounded-lg.shadow-sm.border.border-teal-100.hover:shadow-md.transition-shadow
+      [.text-sm.text-teal-600.mb-2 ,date]
+      [h3.text-lg.font-semibold.text-teal-900.mb-3
+       [a.hover:text-teal-700 (@ (href ,(conc "/blog/" slug))) ,title]]
+      [p.text-teal-700.mb-4 ,excerpt]
+      ,(if tags
+           `[.flex.flex-wrap.gap-2
+             ,@(map (lambda (tag)
+                      `[span.text-xs.bg-teal-100.text-teal-700.px-2.py-1.rounded ,tag])
+                    tags)]
+           '())]))
+
+;; Cache blog posts - loaded once at startup
+(define *blog-posts-cache* #f)
+
+(define (load-blog-posts!)
+  (set! *blog-posts-cache*
+    (condition-case
+     (with-input-from-file "blog/posts.scm" read)
+     (e () '()))))
+
+(define (get-blog-posts)
+  (unless *blog-posts-cache*
+    (load-blog-posts!))
+  *blog-posts-cache*)
+
+(define (blog-list-page)
+  (let ((posts (get-blog-posts)))
+    `[.max-w-4xl.mx-auto
+      [.mb-8
+       [h1.text-3xl.sm:text-4xl.font-bold.text-teal-900.mb-4.cookie-regular "Blog"]
+       [p.text-lg.text-teal-700 "Updates, releases, and insights from the Schematra team"]]
+      ,(if (null? posts)
+           `[.bg-white.p-8.rounded-lg.shadow-sm.border.border-teal-100.text-center
+             [p.text-teal-600 "No blog posts yet. Stay tuned for updates!"]]
+           `[.space-y-6
+             ,@(map blog-post-card posts)])
+      [.mt-8.text-center
+       [a.text-teal-600.hover:text-teal-700 (@ (href "/")) "← Back to Home"]]]))
+
+(define (get-blog-post-by-slug slug)
+  (let ((posts (get-blog-posts)))
+    (let loop ((remaining posts))
+      (if (null? remaining)
+          #f
+          (let ((post (car remaining)))
+            (if (equal? (alist-ref 'slug post) slug)
+                post
+                (loop (cdr remaining))))))))
+
+;; Cache for parsed markdown content (filepath -> normalized SXML)
+(define *markdown-cache* '())
+
+(define (read-markdown-file filepath)
+  ;; bypass cache in dev mode
+  (let ((dev-mode? (equal? (get-environment-variable "SCHEMATRA_ENV") "development")))
+    (or (and (not dev-mode?) (alist-ref filepath *markdown-cache* equal?))
+	(let ((content (condition-case
+			(with-input-from-file filepath read-string)
+			(e () #f))))
+          (if content
+              (let ((parsed (map normalize-sxml (markdown->sxml content))))
+		(set! *markdown-cache* (cons (cons filepath parsed) *markdown-cache*))
+		parsed)
+              #f)))))
+
+;; Normalize SXML from lowdown to be compatible with Chiccup
+(define (normalize-sxml node)
+  (cond
+   ;; List of strings -> concatenate them
+   ((and (list? node)
+         (not (null? node))
+         (every string? node))
+    (string-concatenate node))
+   ;; Element with children
+   ((and (list? node)
+         (not (null? node))
+         (symbol? (car node)))
+    (let ((tag (car node))
+          (rest (cdr node)))
+      (cons tag (map normalize-sxml rest))))
+   ;; Anything else (string, symbol, etc.) pass through
+   (else node)))
+
+(define *gh-base-url* "https://github.com/schematra/schematra/blob/main/web/blog/")
+
+(define (blog-post-page slug)
+  (let ((post (get-blog-post-by-slug slug)))
+    (if post
+        (let ((title (alist-ref 'title post))
+              (date (alist-ref 'date post))
+              (author (alist-ref 'author post))
+              (excerpt (alist-ref 'excerpt post))
+              (image (alist-ref 'image post))
+              (tags (alist-ref 'tags post))
+              (file (alist-ref 'file post))
+              (content (read-markdown-file (conc "blog/" (alist-ref 'file post))))
+              (url (conc "https://schematra.com/blog/" slug)))
+          `[.max-w-3xl.mx-auto
+            [.mb-8
+             [a.text-teal-600.hover:text-teal-700.mb-4.inline-block (@ (href "/blog")) "← All Posts"]
+             [h1.text-3xl.sm:text-4xl.font-bold.text-teal-900.mb-3.cookie-regular ,title]
+             [.flex.items-center.gap-4.mb-4
+              [.text-sm.text-teal-600
+               ,(if author (conc date " • " author) date)]
+              ,(if tags
+                   `[.flex.flex-wrap.gap-2
+                     ,@(map (lambda (tag)
+                              `[span.text-xs.bg-teal-100.text-teal-700.px-2.py-1.rounded ,tag])
+                            tags)]
+                   '())]]
+            [.bg-white.p-6.sm:p-8.rounded-lg.shadow-sm.border.border-teal-100
+             ,(if content
+                  `[.prose.prose-teal.max-w-none
+                    ,@content
+		    [p.text-sm.mt-4
+		     [a (@ (href ,(conc *gh-base-url* slug ".md"))
+			   (target "_blank"))
+			"Source to this post."]]]
+                  `[p.text-red-600 "Content not found"])]
+            [.mt-8.text-center
+             [a.text-teal-600.hover:text-teal-700 (@ (href "/blog")) "← Back to Blog"]]])
+        `[.max-w-3xl.mx-auto
+          [.bg-white.p-8.rounded-lg.shadow-sm.border.border-teal-100.text-center
+           [h1.text-2xl.font-bold.text-teal-900.mb-4 "Post Not Found"]
+           [p.text-teal-700.mb-6 "The blog post you're looking for doesn't exist."]
+           [a.text-teal-600.hover:text-teal-700 (@ (href "/blog")) "← Back to Blog"]]])))

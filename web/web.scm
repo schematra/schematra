@@ -36,12 +36,15 @@
  chicken.string
  chicken.pretty-print
  chicken.process-context
+ chicken.io
+ srfi-1
  srfi-13
  schematra
  schematra-session
  schematra-csrf
  schematra-body-parser
- chiccup)
+ chiccup
+ lowdown)
 
 
 (include "examples")
@@ -83,6 +86,25 @@
 
  (get "/"
       (ccup->html (layout (landing-page))))
+
+ (get "/blog"
+      (ccup->html (layout (blog-list-page))))
+
+ (get "/blog/:slug"
+      (let* ((slug (alist-ref "slug" (current-params) equal?))
+             (post (get-blog-post-by-slug slug)))
+        (if post
+            (let ((title (alist-ref 'title post))
+                  (excerpt (alist-ref 'excerpt post))
+                  (image (alist-ref 'image post))
+                  (url (conc "https://schematra.com/blog/" slug)))
+              (ccup->html (layout (blog-post-page slug)
+                                  meta-title: title
+                                  meta-description: excerpt
+                                  meta-image: image
+                                  meta-url: url
+                                  meta-type: "article")))
+            (ccup->html (layout (blog-post-page slug))))))
 
  (get "/api"
       (redirect "https://github.com/schematra/schematra"))

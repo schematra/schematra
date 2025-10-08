@@ -1,0 +1,11 @@
+;;; schematra.egg -*- scheme -*-
+
+((synopsis
+  "Schematra is a minimalistic web server built on top of spiffy")
+ (author "Rolando Abarca")
+ (license "BSD")
+ (category web)
+ (dependencies schematra lowdown)
+ (component-options
+  (csc-options "-O3" "-d0"))
+ (components (program web)))
