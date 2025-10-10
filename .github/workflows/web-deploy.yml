@@ -1,0 +1,26 @@
+name: web deploy
+on:
+  push:
+    tags:
+      - 'web-*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: schematra/schematra
+
+jobs:
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd apps
+            docker compose pull
+            docker compose up -d --force-recreate schematra
+            docker image prune -f
