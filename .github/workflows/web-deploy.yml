@@ -59,6 +59,7 @@ jobs:
         id: build-and-push
         uses: docker/build-push-action@v6
         with:
+          file: web.dockerfile
           context: .
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
@@ -75,5 +76,5 @@ jobs:
           script: |
             cd apps
             docker compose pull
-            docker compose up -d --force-recreate schematra
+            docker compose up -d --force-recreate schematra-web
             docker image prune -f
