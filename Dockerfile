@@ -24,8 +24,4 @@ RUN bash -c "pushd eggs/chiccup && chicken-install && popd \
           && pushd eggs/schematra-csrf && chicken-install && popd \
           && pushd eggs/oauthtoothy && chicken-install"
 
-COPY web/*.scm ./web/
-COPY web/public ./web/public/
-RUN cd web && chicken-install
-
-CMD ["web"]
+CMD ["csi"]
