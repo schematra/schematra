@@ -7,8 +7,8 @@ name: Docker
 
 on:
   push:
-    # Only trigger on release tags (pattern: egg-version)
-    tags: [ '*-*.*.*' ]
+    # Only trigger on schematra release tags
+    tags: [ 'schematra-*' ]
 
 env:
   # Use docker.io for Docker Hub if empty

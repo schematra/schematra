@@ -14,3 +14,4 @@ eggs/*/*.install.sh
 schematra-web
 *.tar.gz
 docs/*.wiki
+web/web
