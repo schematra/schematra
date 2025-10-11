@@ -26,7 +26,6 @@ RUN bash -c "pushd eggs/chiccup && chicken-install && popd \
 
 COPY web/*.scm ./web/
 COPY web/public ./web/public/
-RUN cd web && csc -O3 -d0 schematra-web.scm
+RUN cd web && chicken-install
 
-WORKDIR web
-CMD ["./schematra-web"]
+CMD ["web"]
