@@ -50,7 +50,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=web-latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=tag
+            type=raw,value=web-latest
 
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action
