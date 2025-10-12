@@ -3,7 +3,7 @@
 ;; The 'file' field should point to a markdown file in the web/blog/ directory
 
 (
- ((slug . "welcome-to-schematra")
+ ((slug . "building-this-blog")
   (title . "Building This Blog: A Schematra Story")
   (date . "2025-10-08")
   (author . "Rolando Abarca")
