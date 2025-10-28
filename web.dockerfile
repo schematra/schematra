@@ -1,4 +1,4 @@
-FROM ghcr.io/schematra/schematra:sha-1437a12
+FROM ghcr.io/schematra/schematra:latest
 
 COPY web/*.scm web/*.egg /schematra/web/
 COPY web/public /schematra/web/public/
