@@ -40,9 +40,9 @@
  srfi-1
  srfi-13
  schematra
+ schematra.body-parser
  schematra-session
  schematra-csrf
- schematra-body-parser
  chiccup
  lowdown)
 
