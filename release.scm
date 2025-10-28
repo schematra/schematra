@@ -174,9 +174,12 @@
             (print "  Creating tag " tag "...")
             (run-command "git" "tag" tag)
 
-            ;; Note: Tag is created locally but not pushed
-            ;; Push the commits and tags manually after reviewing:
-            ;;   git push origin main && git push origin --tags
+            ;; Push commit first, then tag (so tag points to commit that exists on remote)
+            (print "  Pushing commit to remote...")
+            (run-command "git" "push" "origin" "HEAD")
+
+            (print "  Pushing tag to remote...")
+            (run-command "git" "push" "origin" tag)
 
             ;; Create GitHub release if gh is available
             (if (gh-available?)
