@@ -62,7 +62,8 @@
 (import
  chicken.base
  chicken.module   ;; export
- chicken.platform ;; chicken-version
+ chicken.platform ;; chicken-version & register-feature!
+ chicken.process-context
  chicken.io
  chicken.condition
  chicken.string
@@ -114,7 +115,10 @@
 ;; Expands at compile time; embeds literals:
 (define-version-constants)
 
-(define development-mode? #f)
+(define *schematra-env* (or (get-environment-variable "SCHEMATRA_ENV") "development"))
+(if (equal? *schematra-env* "development")
+    (register-feature! 'schematra-dev)
+    (register-feature! 'schematra-prod))
 
 ;; Default virtual host pattern for Schematra routing
 ;;
@@ -991,20 +995,18 @@
 ;; Start the Schematra web server
 ;;
 ;; This function starts the Spiffy web server with Schematra routing enabled.
-;; It supports both production and development modes with different behaviors.
 ;;
 ;; ### Parameters
 ;;   - `port`: integer - HTTP server port (default: 8080)  
-;;   - `development?`: boolean - Enable development mode (default: #f)
 ;;   - `repl?`: boolean - Enabled NREPL, only if dev mode is true (default: #f)
 ;;   - `repl-port`: integer - REPL port for development mode (default: 1234)
 ;;
 ;; ### Development Mode
-;; When `development?` is #t, the server runs in a separate thread
-;; and starts an nREPL server on the specified repl-port for
-;; interactive development if `repl?` is also #t. This allows you to
-;; connect with a REPL client and modify routes/handlers while the
-;; server is running.
+;; When `SCHEMATRA_ENV` is "development", the server runs in a
+;; separate thread and starts an nREPL server on the specified
+;; repl-port for interactive development if `repl?` is also #t. This
+;; allows you to connect with a REPL client and modify routes/handlers
+;; while the server is running.
 ;;
 ;; **IMPORTANT:** Development mode requires the 'nrepl' egg to be installed:
 ;; ```bash
@@ -1014,23 +1016,23 @@
 ;; Development mode also enables request logging to stdout.
 ;;
 ;; ### Production Mode
-;; When `development?` is #f (default), starts the server normally in the
-;; current thread without REPL access.
+;; When `SCHEMATRA_ENV` is not "development" (default), starts the
+;; server normally in the current thread without REPL access.
 ;;
 ;; ### Examples
 ;; ```scheme
 ;; ;; Production mode
 ;; (schematra-start port: 3000)
 ;;
-;; ;; Development mode with custom ports
-;; (schematra-start development?: #t nrepl?: #t port: 3000 repl-port: 9999)
+;; ;; Development mode with custom port
+;; (set-enviroment-variable! "SCHEMATRA_ENV" "development")
+;; (import schematra)
+;; ...
+;; (schematra-start port: 3000)
 ;; ```
 (define (schematra-start #!key
-                         (development? #f)
                          (port 8080)
-                         (repl-port 1234)
                          (bind-address #f)
-                         (nrepl? #f)
                          access-port-or-file
                          error-port-or-file)
   ;; send both logs to current output by default
@@ -1046,16 +1048,11 @@
   (server-port port)
   (server-bind-address bind-address)
 
-  (if development?
+  (if (equal? *schematra-env* "development")
       (begin
-        (set! development-mode? #t)
-        ;; start the server inside a thread, then start the nrepl in port `repl-port`
         (thread-start!
          (lambda ()
-           (start-server)))
-        (when nrepl?
-          (import nrepl)
-          (nrepl repl-port)))
+           (start-server))))
       (start-server)))
 
 ) ;; end of module
