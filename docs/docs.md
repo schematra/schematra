@@ -13,6 +13,7 @@ A modern web framework for Scheme that lets you write web apps the way you think
 - [OAuth2 Authentication (Oauthtoothy)](#oauth2-authentication-oauthtoothy)
 - [API Reference](#api-reference)
 - [Advanced Topics](#advanced-topics)
+- [Testing](#testing)
 - [Examples & Recipes](#examples--recipes)
 - [Contributing](#contributing)
 
@@ -1143,6 +1144,265 @@ Schematra doesn't include built-in database integration, but you can use any [CH
 ### Deployment
 
 *Deployment guides for various platforms coming soon.*
+
+## Testing
+
+Schematra includes a built-in testing module (`schematra.test`) that lets you test your routes, middleware, cookies, and sessions without starting a server.
+
+### Setup
+
+Install the `test` egg if you don't already have it:
+
+```bash
+chicken-install test
+```
+
+Import the testing module alongside your app's dependencies:
+
+```scheme
+(import schematra schematra.test test)
+```
+
+### Creating a Test App
+
+Use `with-test-app` to create an app with routes for testing:
+
+```scheme
+(define app
+  (with-test-app a
+    (get "/" "Hello World")
+    (get "/users/:id"
+         (let ((id (alist-ref "id" (current-params) equal?)))
+           (string-append "User " id)))
+    (post "/submit" '(created "done" ()))))
+```
+
+The variable name (`a` above) is bound to the app inside the body, so you can reference it for middleware setup:
+
+```scheme
+(define app
+  (with-test-app a
+    (use-middleware! (session-middleware "secret"))
+    (get "/profile" (session-get "user" "anonymous"))))
+```
+
+### Basic Route Testing
+
+The core helpers return parts of the response tuple `(status body headers)`:
+
+```scheme
+(test-group "My routes"
+  (let ((app (with-test-app a
+               (get "/hello" "Hello World")
+               (post "/echo" (alist-ref 'msg (current-params))))))
+
+    ;; Test status
+    (test "GET /hello returns ok" 'ok
+          (test-route-status app 'GET "/hello"))
+
+    ;; Test body
+    (test "GET /hello body" "Hello World"
+          (test-route-body app 'GET "/hello"))
+
+    ;; Test full tuple
+    (test "GET /hello tuple" '(ok "Hello World" ())
+          (test-route app 'GET "/hello"))
+
+    ;; Unmatched routes return #f
+    (test "Unknown route" #f
+          (test-route app 'GET "/unknown"))
+
+    ;; Wrong method returns #f
+    (test "Wrong method" #f
+          (test-route app 'GET "/echo"))))
+```
+
+### Testing with Request Bodies and Headers
+
+Pass `body:` and `headers:` to simulate POST requests with payloads:
+
+```scheme
+(test-group "Body parser"
+  (let ((app (with-test-app a
+               (use-middleware! (body-parser-middleware))
+               (post "/form"
+                     (let ((name (alist-ref 'name (current-params))))
+                       (string-append "name=" name))))))
+
+    (test "Form data parsed" "name=Alice"
+          (test-route-body app 'POST "/form"
+                           headers: '((content-type application/x-www-form-urlencoded))
+                           body: "name=Alice"))))
+```
+
+### Testing Cookies
+
+Use `test-route-full` to capture response cookies. It returns a 4-element list: `(status body headers cookies)`, where cookies is an alist of `(name . value)` pairs from Set-Cookie headers.
+
+```scheme
+(test-group "Cookies"
+  (let ((app (with-test-app a
+               (get "/set-cookie"
+                    (cookie-set! "flavor" "chocolate")
+                    "done"))))
+
+    ;; Extract a specific cookie value
+    (test "Cookie is set" "chocolate"
+          (response-cookie-value
+           (test-route-full app 'GET "/set-cookie")
+           "flavor"))))
+```
+
+To send cookies with a request, use the `cookies:` keyword with an alist of `(name . value)` string pairs:
+
+```scheme
+(test-group "Reading cookies"
+  (let ((app (with-test-app a
+               (get "/read"
+                    (string-append "val=" (or (cookie-ref "token") "none"))))))
+
+    (test "Cookie is read" "val=abc123"
+          (test-route-body app 'GET "/read"
+                           cookies: '(("token" . "abc123"))))))
+```
+
+### Testing Sessions
+
+Combine `test-route-full` and `cookies:` to test the full session lifecycle — set a value, capture the session cookie, then send it back:
+
+```scheme
+(test-group "Sessions"
+  (let* ((secret "test-secret")
+         (app (with-test-app a
+                (use-middleware! (session-middleware secret))
+                (get "/login"
+                     (session-set! "user" "alice")
+                     "logged in")
+                (get "/profile"
+                     (string-append "user=" (or (session-get "user") "none"))))))
+
+    ;; Step 1: Hit the login route and capture the session cookie
+    (let* ((full (test-route-full app 'GET "/login"))
+           (cookie-name (session-key))
+           (cookie-val (response-cookie-value full cookie-name)))
+
+      (test "Login succeeds" 'ok (car full))
+      (test "Session cookie is set" #t (string? cookie-val))
+
+      ;; Step 2: Send the cookie back to read the session
+      (when (string? cookie-val)
+        (test "Session persists" "user=alice"
+              (test-route-body app 'GET "/profile"
+                               cookies: (list (cons cookie-name cookie-val))))))))
+```
+
+### Testing Redirects
+
+Use `test-route-redirect-location` to extract the Location header as a string:
+
+```scheme
+(test-group "Redirects"
+  (let ((app (with-test-app a
+               (get "/old" (redirect "/new"))
+               (get "/moved" (redirect "/new" 'moved-permanently)))))
+
+    (test "Redirect status" 'found
+          (test-route-status app 'GET "/old"))
+    (test "Redirect location" "/new"
+          (test-route-redirect-location app 'GET "/old"))
+    (test "Permanent redirect" 'moved-permanently
+          (test-route-status app 'GET "/moved"))))
+```
+
+### Testing Halt
+
+```scheme
+(test-group "Halt"
+  (let ((app (with-test-app a
+               (get "/denied" (halt 'forbidden "Access denied"))
+               (get "/guard"
+                    (unless (alist-ref 'token (current-params))
+                      (halt 'unauthorized "No token"))
+                    "Welcome"))))
+
+    (test "Halt status" 'forbidden
+          (test-route-status app 'GET "/denied"))
+    (test "Halt body" "Access denied"
+          (test-route-body app 'GET "/denied"))
+    (test "Guard without token" 'unauthorized
+          (test-route-status app 'GET "/guard"))
+    (test "Guard with token" 'ok
+          (test-route-status app 'GET "/guard?token=yes"))))
+```
+
+### Testing JSON Responses
+
+```scheme
+(import medea) ;; for read-json
+
+(test-group "JSON API"
+  (let ((app (with-test-app a
+               (get "/api/user"
+                    (send-json-response '((name . "alice") (role . "admin")))))))
+
+    (test "JSON status" 'ok
+          (test-route-status app 'GET "/api/user"))
+    (let ((body (test-route-body app 'GET "/api/user")))
+      (test "JSON name field" "alice"
+            (alist-ref 'name (read-json body))))))
+```
+
+### Testing Middleware
+
+```scheme
+(test-group "Middleware"
+  ;; Middleware that wraps the response
+  (let ((app (with-test-app a
+               (use-middleware!
+                (lambda (next)
+                  (let ((result (next)))
+                    (if (string? result)
+                        (string-append "[" result "]")
+                        result))))
+               (get "/hello" "world"))))
+    (test "Middleware wraps response" "[world]"
+          (test-route-body app 'GET "/hello")))
+
+  ;; Middleware that short-circuits
+  (let ((app (with-test-app a
+               (use-middleware!
+                (lambda (next)
+                  (halt 'forbidden "blocked")))
+               (get "/secret" "hidden"))))
+    (test "Middleware blocks request" 'forbidden
+          (test-route-status app 'GET "/secret"))))
+```
+
+### API Reference
+
+| Function | Returns | Description |
+|---|---|---|
+| `(test-route app method path ...)` | `(status body headers)` or `#f` | Full response tuple |
+| `(test-route-status app method path ...)` | symbol or `#f` | Response status only |
+| `(test-route-body app method path ...)` | string or `#f` | Response body only |
+| `(test-route-headers app method path ...)` | alist or `#f` | Response headers only |
+| `(test-route-full app method path ...)` | `(status body headers cookies)` or `#f` | Response with cookies |
+| `(test-route-cookies app method path ...)` | alist or `#f` | Response cookies only |
+| `(response-cookie-value full-result name)` | string or `#f` | Extract cookie by name |
+| `(test-route-redirect-location app method path ...)` | string or `#f` | Location header URI |
+
+All route-testing functions accept these keyword arguments:
+- `headers:` — request headers alist (e.g., `'((content-type application/json))`)
+- `body:` — request body string
+- `cookies:` — request cookies alist (e.g., `'(("name" . "value"))`)
+
+### Running Tests
+
+```bash
+csi -s tests/my_tests.scm
+```
+
+The `test` egg prints results to stdout and exits with code 0 on success, non-zero on failure.
 
 ## Examples & Recipes
 

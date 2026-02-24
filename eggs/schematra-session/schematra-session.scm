@@ -37,6 +37,7 @@
   session-middleware
   session-get session-set! session-delete!
   session-destroy!
+  serialize-session
   ;; parameters
   session-max-age
   session-key

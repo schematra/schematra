@@ -40,6 +40,9 @@ csc -O2 -d0 schematra-web.scm
 ```bash
 # Run chiccup tests
 csi -s tests/chiccup_tests.scm
+
+# Run schematra framework tests
+csi -s tests/schematra_tests.scm
 ```
 
 ### Release Management
