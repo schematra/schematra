@@ -537,6 +537,7 @@ Oauthtoothy is Schematra's OAuth2 authentication middleware that provides comple
 - **Session Integration**: Seamlessly integrates with Schematra's session system
 - **User Persistence**: Optional save/load procedures for user data storage
 - **Configurable Redirects**: Customize post-authentication redirect behavior
+- **Pluggable HTTP Client**: Swap in any compatible HTTP client (e.g., `http-curl` for better HTTPS support)
 
 ### Installation and Setup
 
@@ -603,6 +604,26 @@ Parameter containing the current user's authentication state.
   (email . "john@example.com")
   ;; Additional fields from user-info-parser
   )
+```
+
+#### `(oauth-call-with-input-request [proc])`
+
+Parameter controlling which HTTP client function is used for token exchange requests (POST with body). Defaults to `call-with-input-request` from `http-client`.
+
+```scheme
+;; Use http-curl instead of http-client
+(import http-curl)
+(oauth-call-with-input-request call-with-input-request/curl)
+```
+
+#### `(oauth-with-input-from-request [proc])`
+
+Parameter controlling which HTTP client function is used for user info requests (GET with headers). Defaults to `with-input-from-request` from `http-client`.
+
+```scheme
+;; Use http-curl instead of http-client
+(import http-curl)
+(oauth-with-input-from-request with-input-from-request/curl)
 ```
 
 ### Provider Configuration
@@ -790,6 +811,18 @@ Configure the base URL for OAuth2 callbacks (required for production):
 
 ;; Production
 (auth-base-url "https://myapp.example.com")
+```
+
+#### Custom HTTP Client
+
+By default, Oauthtoothy uses `http-client` for all OAuth2 HTTP requests. You can swap in a different HTTP client (e.g., `http-curl`) by setting the `oauth-call-with-input-request` and `oauth-with-input-from-request` parameters. Any client that exposes the same API as `http-client` will work.
+
+```scheme
+(import http-curl)
+
+;; Override both HTTP client functions
+(oauth-call-with-input-request call-with-input-request/curl)
+(oauth-with-input-from-request with-input-from-request/curl)
 ```
 
 ### Route Protection Patterns
