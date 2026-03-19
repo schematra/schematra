@@ -36,6 +36,8 @@
   oauthtoothy-middleware
   auth-base-url
   current-auth
+  oauth-call-with-input-request
+  oauth-with-input-from-request
  )
 
  (import scheme)
@@ -73,6 +75,9 @@
  ;; Note: This URL must be registered with your OAuth2 providers as an allowed callback URL.
  ;; The actual callback path will be "{base-url}/auth/{provider}/callback".
  (define auth-base-url (make-parameter "http://localhost:8080"))
+
+ (define oauth-call-with-input-request (make-parameter call-with-input-request))
+ (define oauth-with-input-from-request (make-parameter with-input-from-request))
 
  (define user-save-proc (make-parameter #f))
  (define user-load-proc (make-parameter #f))
@@ -132,7 +137,7 @@
 
      (define (attempt-exchange retry-count max-retries)
        (condition-case
-        (call-with-input-request
+        ((oauth-call-with-input-request)
          token-url
          form-data
          (lambda (response-port)
@@ -171,7 +176,7 @@
 	  (request (make-request uri: (uri-reference user-info-url)
 				 headers: (headers
 					   `((authorization #(,(string-append "Bearer " access-token) raw)))))))
-     (with-input-from-request request #f read-json)))
+     ((oauth-with-input-from-request) request #f read-json)))
 
  ;; OAuth2 authentication middleware for Schematra
  ;;
