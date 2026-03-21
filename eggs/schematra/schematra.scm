@@ -915,7 +915,7 @@
                 [else `(error ,response-tuple ())]))
              [exn (halt-condition)
                   (let* ((status       (get-condition-property exn 'halt-condition 'status))
-                         (body         (get-condition-property exn 'halt-condition 'body))
+                         (body         (or (get-condition-property exn 'halt-condition 'body) ""))
                          (halt-headers (get-condition-property exn 'halt-condition 'headers))
                          (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies))))
                          (halt-tuple   (list status body new-headers)))
