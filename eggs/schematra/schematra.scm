@@ -691,7 +691,7 @@
     (current-body (format "Error: response type not supported (~A)" tuple))
     (update-response
      response
-     status: 'error)]))
+     status: 'internal-server-error)]))
 
 ;; Extract the request body as a string
 ;;
