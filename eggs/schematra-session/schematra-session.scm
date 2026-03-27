@@ -42,6 +42,7 @@
   session-max-age
   session-key
   session-dirty-key
+  session-version
   ) ;; end export list
 
  (import scheme)
@@ -127,6 +128,25 @@
  ;;   - This key is automatically removed from the session data before serialization, so it never appears in the actual cookie value
  (define session-dirty-key '__dirty)
 
+ (define session-version-key '__version)
+
+ ;; Parameter that controls the session version.
+ ;;
+ ;; When the version stored in an existing session cookie does not match
+ ;; the current value, the session is discarded and a fresh one is created.
+ ;; Bump this value to invalidate all existing sessions (e.g. after changing
+ ;; the session schema).
+ ;;
+ ;; ### Parameters
+ ;;   - `version`: integer - Session version number (default: 1)
+ ;;
+ ;; ### Examples
+ ;; ```scheme
+ ;; ;; Bump to invalidate all current sessions
+ ;; (session-version 2)
+ ;; ```
+ (define session-version (make-parameter 1))
+
  ;; this is the placeholder for the hash-table that will hold the
  ;; session data through a request.
  (define session (make-parameter #f))
@@ -203,6 +223,8 @@
  (define (serialize-session session-hash secret-key)
    ;; don't serialize the modified key
    (hash-table-delete! session-hash session-dirty-key)
+   ;; stamp the current version into the session
+   (hash-table-set! session-hash session-version-key (session-version))
    ;; we need to convert the string from the alist to signature
    ;; . base64(alist)
    (let* ((alist        (hash-table->alist session-hash))
@@ -221,7 +243,12 @@
            (prim         (hmac-primitive secret-key (sha256-primitive)))
            (valid-sign?  (string=? signature (message-digest-string prim alist-base64))))
       (if valid-sign?
-          (alist->hash-table (with-input-from-string (base64-decode alist-base64) read))
+          (let ((ht (alist->hash-table (with-input-from-string (base64-decode alist-base64) read))))
+            (if (equal? (hash-table-ref/default ht session-version-key #f) (session-version))
+                (begin
+                  (hash-table-delete! ht session-version-key)
+                  ht)
+                (make-hash-table)))
           (make-hash-table)))
     (e (_exn) (begin
                 (log-to (error-log) "Error deserializing cookie: ~A" cookie-value)
