@@ -952,45 +952,27 @@
                       (flush-output (access-log))
                       (flush-output (error-log)))))))))
 
-(define schematra-logo
-  "                                                .:::.
-                                            .-+##%%%%=
-                                          -*%%#*****#%=
-                                      .:=#%#*********#%=
-                                   :+#%%#*************#%-
-                            .     +%#*************###%%%%:             .
-                          :+-    .%#*********##%%%%%%%%%@#-==++++=.    -+:
-                        .=*:     .%#*****#%%%%%%%%%%%%#####**##%@%.     :*=.
-                       .+*.       ##**#%%%%%%%%##*********##%%@%*.       .*+.
-                      .+*:        *%#%%%%%##******######%%%%@%+:          :*+.
-                     .+*-         -@%%#*****####**+=-:. :*@*-.             -*+
-                     =*+        :+##***###*+=-..          *#                +*=
-                    :**:      -*##*##%%+:.       :##=     .%=               -**.
-                    =*+.     +@###%%%%+          *@%%.     ##--:.           .**=
-                   .+*=      =%%%%%%%#           =%%+   :+########+:         +*+
-                   :**-       .:---+%-            .:  :*%*+++++++*#%+.       =**.
-                   :**-            **                =%%#******####%%+       -**:
-                   :**-           -%:                *%*#%%%%++=-::...       -**:
-                   :**-           *#                 =%#+*#%%=:.             -**:
-                   .**=          :%-                .###%#***%@%.            =**.
-                    +*+          *#                 +%++*%%%%*=:             +*+
-                    -**:        =%:                .%*+++#%+##.             :**-
-                    .+*=      .+%-                 :%*+++*%*+%+             =*+.
-                     -**:    +%*:                  .%#+++#%*+%*            :**:
-                      =*+.   =%#===+*+              :#%##%%%#*:           .+*-
-                       =*+    .-=++=%*               .-==:*%-             +*=
-                        -*+.        ##    ..               *#.          .+*-
-                         :++:       :%+  .#%:              .%+         :++.
-                           :=.       -%#-##*%=.     +=.     =%:       .=:
-                                      .=#%: -#%*-:. +@%*+=--=@*
-                                         .    :=*####%=-=+**++-")
-
 (define (schematra-banner)
-  (let ((port (server-port))
-        (address (or (server-bind-address) "(all)")))
-    (conc schematra-logo "\n"
-          "Schematra version: " version-major "." version-minor "." version-patch "\n"
-          "Listening on " address ":" port "\n")))
+  (let* ((port (server-port))
+         (address (or (server-bind-address) "(all)"))
+         (esc (string (integer->char 27)))
+         (reset (conc esc "[0m"))
+         (bold (conc esc "[1m"))
+         (teal-light (conc esc "[38;2;94;234;212m"))
+         (teal (conc esc "[38;2;13;148;136m"))
+         (teal-dark (conc esc "[38;2;19;78;74m")))
+    (conc
+      "\n"
+      teal-light "               _                                             " reset "\n"
+      teal-light " /    ()      | |                                          \\ " reset "\n"
+      teal       "|     /\\  __  | |     _   _  _  _    __, _|_  ,_    __,     |" reset "\n"
+      teal       "|    /  \\/    |/ \\   |/  / |/ |/ |  /  |  |  /  |  /  |     |" reset "\n"
+      teal-dark  "|   /(__/\\___/|   |_/|__/  |  |  |_/\\_/|_/|_/   |_/\\_/|_/   |" reset "\n"
+      teal-dark  " \\                                                         / " reset "\n"
+      "\n"
+      teal bold "  v" version-major "." version-minor "." version-patch reset
+      teal-dark "  •  " reset
+      teal-dark "Listening on " address ":" port reset "\n")))
 
 ;; Start the Schematra web server
 ;;
