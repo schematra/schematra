@@ -42,7 +42,6 @@
   session-max-age
   session-key
   session-dirty-key
-  session-version
   ) ;; end export list
 
  (import scheme)
@@ -130,23 +129,6 @@
 
  (define session-version-key '__version)
 
- ;; Parameter that controls the session version.
- ;;
- ;; When the version stored in an existing session cookie does not match
- ;; the current value, the session is discarded and a fresh one is created.
- ;; Bump this value to invalidate all existing sessions (e.g. after changing
- ;; the session schema).
- ;;
- ;; ### Parameters
- ;;   - `version`: integer - Session version number (default: 1)
- ;;
- ;; ### Examples
- ;; ```scheme
- ;; ;; Bump to invalidate all current sessions
- ;; (session-version 2)
- ;; ```
- (define session-version (make-parameter 1))
-
  ;; this is the placeholder for the hash-table that will hold the
  ;; session data through a request.
  (define session (make-parameter #f))
@@ -162,6 +144,9 @@
  ;;   - `secret-key`: string - Secret key used for session serialization/security.
  ;;                   This key should be kept secret and consistent across server restarts
  ;;                   to maintain session continuity. Use a strong, random string.
+ ;;   - `version:`: integer (optional) - Session version number. When provided, sessions
+ ;;                 with a different version are discarded. Bump this to invalidate all
+ ;;                 existing sessions (e.g. after changing the session schema).
  ;;
  ;; ### Returns
  ;;   A middleware function that can be used with `use-middleware!`
@@ -191,6 +176,9 @@
  ;; ;; Install session middleware with a secret key
  ;; (use-middleware! (session-middleware "my-secret-key-12345"))
  ;;
+ ;; ;; With versioning to invalidate stale sessions
+ ;; (use-middleware! (session-middleware "my-secret-key-12345" version: 2))
+ ;;
  ;; ;; In route handlers, use session functions:
  ;; (get "/login"
  ;;      (session-set! "user-id" "12345")
@@ -203,11 +191,11 @@
  ;;            (format "Welcome user ~A" user-id)
  ;;            "Please log in")))
  ;; ```
- (define (session-middleware secret-key)
+ (define (session-middleware secret-key #!key version)
    (lambda (next)
      (let* ((session-cookie (cookie-ref (session-key)))
             (session-data (if session-cookie
-                              (deserialize-session session-cookie secret-key)
+                              (deserialize-session session-cookie secret-key version)
                               (make-hash-table))))
        (parameterize ((session session-data))
          (dynamic-wind
@@ -216,15 +204,17 @@
              (lambda ()         ;; after thunk - always run
                (if (hash-table-exists? (session) session-dirty-key)
                    (cookie-set! (session-key)
-                                (serialize-session (session) secret-key)
+                                (serialize-session (session) secret-key version)
                                 http-only: #t
                                 max-age: (session-max-age)))))))))
 
- (define (serialize-session session-hash secret-key)
+ (define (serialize-session session-hash secret-key version)
    ;; don't serialize the modified key
    (hash-table-delete! session-hash session-dirty-key)
-   ;; stamp the current version into the session
-   (hash-table-set! session-hash session-version-key (session-version))
+   ;; stamp the version into the session (when provided)
+   (if version
+       (hash-table-set! session-hash session-version-key version)
+       (hash-table-delete! session-hash session-version-key))
    ;; we need to convert the string from the alist to signature
    ;; . base64(alist)
    (let* ((alist        (hash-table->alist session-hash))
@@ -235,7 +225,7 @@
           (signature    (message-digest-string prim alist-base64)))
      (string-append signature "." alist-base64)))
 
- (define (deserialize-session cookie-value secret-key)
+ (define (deserialize-session cookie-value secret-key version)
    (condition-case
     (let* ((cookie       (string-split cookie-value "."))
            (signature    (car cookie))
@@ -244,7 +234,7 @@
            (valid-sign?  (string=? signature (message-digest-string prim alist-base64))))
       (if valid-sign?
           (let ((ht (alist->hash-table (with-input-from-string (base64-decode alist-base64) read))))
-            (if (equal? (hash-table-ref/default ht session-version-key #f) (session-version))
+            (if (equal? (hash-table-ref/default ht session-version-key #f) version)
                 (begin
                   (hash-table-delete! ht session-version-key)
                   ht)
