@@ -360,6 +360,7 @@
 (define-verb post)
 (define-verb put)
 (define-verb delete)
+(define-verb options)
 
 ;; Register a Server-Sent Events (SSE) endpoint
 ;;
