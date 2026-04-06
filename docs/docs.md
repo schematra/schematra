@@ -406,13 +406,18 @@ Middleware can access request parameters using `(current-params)` and modify the
 
 **Simple Logging Middleware**
 
+Schematra uses the [logger](https://forgejo.rolando.cl/cpm/logger-egg) egg for structured logging. Access logs and error logs are automatically handled by the framework. You can also use logger in your own middleware:
+
 ```scheme
+(import logger)
+
+(logger/install my-app)  ;; creates local d, i, w, e functions
+
 (define (logging-middleware next)
   (let* ((request (current-request))
          (method (request-method request))
-         (uri (request-uri request))
-         (path (uri-path uri)))
-    (log-dbg "~A ~A" method (uri->string uri))
+         (uri (request-uri request)))
+    (d (format "~A ~A" method (uri->string uri)))
     (next)))
 
 (use-middleware! logging-middleware)
@@ -1044,11 +1049,15 @@ Serve static files from a directory. Mount them at `path` prefix.
 #### `(schematra-install)`
 Install the schematra route handlers.
 
-#### `(schematra-start #!key development? nrepl?)`
+#### `(schematra-start #!key port bind-address log-output log-level log-format)`
 Start the web server.
-- `development?`: Enable development mode (default: #f) - starts the
-  Spiffy server on a separate thread.
-- `nrepl?`: If on dev mode, start NREPL server (default: #t)
+- `port`: Port to listen on (default: 8080)
+- `bind-address`: Address to bind to (default: #f, binds to 0.0.0.0)
+- `log-output`: Output port for logs (default: `(current-output-port)`)
+- `log-level`: Log level — `'debug`, `'info`, `'warn`, or `'error` (default: `'info`)
+- `log-format`: Log format — `'text` or `'json` (default: `'text`)
+
+When `SCHEMATRA_ENV` is set to `"development"`, the server starts on a separate thread.
 
 ### Chiccup Functions
 
