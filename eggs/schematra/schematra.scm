@@ -81,7 +81,8 @@
  srfi-13 ;; string-join & others
  srfi-18
  srfi-69
- chiccup)
+ chiccup
+ logger)
 
 
 (import-for-syntax chicken.string) ;; string-split
@@ -114,6 +115,8 @@
 
 ;; Expands at compile time; embeds literals:
 (define-version-constants)
+
+(logger/install schematra)
 
 (define *schematra-env* (or (get-environment-variable "SCHEMATRA_ENV") "development"))
 (if (equal? *schematra-env* "development")
@@ -840,10 +843,10 @@
                       (header-value 'x-sse-handler (response-headers (current-response)))))
          (thread-id (thread-name (current-thread))))
      (if is-sse
-         (log-to (error-log) "[ERROR] SSE connection closed: ~A" exn)
+         (e (format "SSE connection closed: ~A" exn))
          ;; only send status for other reqs
          (begin
-           (log-to (error-log) (build-error-message exn chain #t))
+           (e (build-error-message exn chain #t))
            (send-status 'internal-server-error (build-error-page exn)))))))
 
 (define current-body (make-parameter #f))
@@ -949,9 +952,7 @@
                     (let* ((request       (current-request))
                            (method        (request-method request)))
                       (unless (schematra-route-request request)
-                        (continue))
-                      (flush-output (access-log))
-                      (flush-output (error-log)))))))))
+                        (continue)))))))))
 
 (define (schematra-banner)
   (let* ((port (server-port))
@@ -1016,14 +1017,27 @@
 (define (schematra-start #!key
                          (port 8080)
                          (bind-address #f)
-                         access-port-or-file
-                         error-port-or-file)
-  ;; send both logs to current output by default
-  (access-log (or access-port-or-file (current-output-port)))
-  (error-log (or error-port-or-file (current-output-port)))
+                         (log-output (current-output-port))
+                         (log-level 'info)
+                         (log-format 'text))
+  ;; configure logger
+  (logger/output log-output)
+  (logger/level log-level)
+  (logger/format log-format)
+  ;; override Spiffy's access logging to use logger
+  (handle-access-logging
+   (lambda ()
+     (let ((h (request-headers (current-request))))
+       (i (format "~A \"~A ~A HTTP/~A.~A\" ~A \"~A\" \"~A\""
+                  (remote-address)
+                  (request-method (current-request))
+                  (uri->string (request-uri (current-request)))
+                  (request-major (current-request))
+                  (request-minor (current-request))
+                  (response-code (current-response))
+                  (uri->string (header-value 'referer h (uri-reference "-")))
+                  (or (header-value 'user-agent h) "**Unknown**"))))))
 
-  ;; NOTE: figure out if we want to keep these params as arguments to
-  ;; the start function or let the user set them as they want.
   (server-software `(("Schematra"
                       ,(conc version-major "." version-minor)
                       ,(conc "Running on CHICKEN " (chicken-version)))))
