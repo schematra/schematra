@@ -891,42 +891,57 @@
           (let* ((handler (car resource))
                  (route-params (cadr resource)))
             (current-params (append route-params (uri-query uri)))
-            ;; this condition-case is here to handle halts that might happen mid-routing
-            (condition-case
-             (let* ((response-tuple (apply-middleware-stack middleware-stack handler))
-                    (orig-status (if (list? response-tuple) (car response-tuple) #f))
-                    (old-headers (response-headers (current-response)))
-                    (new-headers (intarweb:headers (cookies->alist (response-cookies))
-                                                   old-headers)))
-               (current-response (update-response (current-response)
-                                                  headers: new-headers))
-               (current-response (update-response-with-tuple! (current-response) response-tuple))
-               ;; need to include the body here, either send the file or just the string
-               (if (eq? orig-status 'static-file)
-                   (condition-case
-                    (call-with-input-file* (current-body)
-                                           (lambda (f)
-                                             (write-logged-response)
-                                             (sendfile f (response-port (current-response)))
-                                             (finish-response-body (current-response))))
-                    [(exn i/o file) (send-status 'forbidden)])
-                   (send-response body: (current-body)))
-               ;; Return the normalized response tuple
-               (cond
-                [(string? response-tuple) `(ok ,response-tuple ())]
-                [(is-chiccup-response? response-tuple) `(ok ,response-tuple ())]
-                [(is-response? response-tuple) response-tuple]
-                [else `(error ,response-tuple ())]))
-             [exn (halt-condition)
-                  (let* ((status       (get-condition-property exn 'halt-condition 'status))
-                         (body         (or (get-condition-property exn 'halt-condition 'body) ""))
-                         (halt-headers (get-condition-property exn 'halt-condition 'headers))
-                         (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies))))
-                         (halt-tuple   (list status body new-headers)))
-                    (current-response (update-response-with-tuple! (current-response) halt-tuple))
-                    (send-response status: status body: body)
-                    ;; Return the halt tuple
-                    halt-tuple)])))
+            ;; Capture call chain at the point of exception (before unwinding)
+            ;; using with-exception-handler + call/cc escape, so the trace
+            ;; shows route code instead of spiffy internals.
+            (let ((caught-exn #f)
+                  (caught-chain #f))
+              (let ((result
+                     (call-with-current-continuation
+                       (lambda (escape)
+                         (with-exception-handler
+                           (lambda (exn)
+                             (set! caught-exn exn)
+                             (set! caught-chain (get-call-chain))
+                             (escape #f))
+                           (lambda ()
+                             (let* ((response-tuple (apply-middleware-stack middleware-stack handler))
+                                    (orig-status (if (list? response-tuple) (car response-tuple) #f))
+                                    (old-headers (response-headers (current-response)))
+                                    (new-headers (intarweb:headers (cookies->alist (response-cookies))
+                                                                    old-headers)))
+                               (current-response (update-response (current-response)
+                                                                  headers: new-headers))
+                               (current-response (update-response-with-tuple! (current-response) response-tuple))
+                               (if (eq? orig-status 'static-file)
+                                   (condition-case
+                                     (call-with-input-file* (current-body)
+                                       (lambda (f)
+                                         (write-logged-response)
+                                         (sendfile f (response-port (current-response)))
+                                         (finish-response-body (current-response))))
+                                     [(exn i/o file) (send-status 'forbidden)])
+                                   (send-response body: (current-body)))
+                               (cond
+                                 [(string? response-tuple) `(ok ,response-tuple ())]
+                                 [(is-chiccup-response? response-tuple) `(ok ,response-tuple ())]
+                                 [(is-response? response-tuple) response-tuple]
+                                 [else `(error ,response-tuple ())])))))))) ;; let*/lambda/weh/lambda/call-cc/result-pair/result-bindings
+                (if (not caught-exn)
+                    result
+                    (let ((halt-status (get-condition-property caught-exn 'halt-condition 'status #f)))
+                      (if halt-status
+                          (let* ((body         (or (get-condition-property caught-exn 'halt-condition 'body) ""))
+                                 (halt-headers (get-condition-property caught-exn 'halt-condition 'headers))
+                                 (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies))))
+                                 (halt-tuple   (list halt-status body new-headers)))
+                            (current-response (update-response-with-tuple! (current-response) halt-tuple))
+                            (send-response status: halt-status body: body)
+                            halt-tuple)
+                          (begin
+                            (e (build-error-message caught-exn caught-chain #t))
+                            (send-status 'internal-server-error (build-error-page caught-exn))
+                            `(internal-server-error "" ()))))))))) ;; if/let/if/let-result/let-caught
         #f)))
 
 ;; Install the Schematra router as a virtual host handler
@@ -1020,6 +1035,8 @@
                          (log-output (current-output-port))
                          (log-level 'info)
                          (log-format 'text))
+  ;; increase trace buffer so route frames survive spiffy's dispatch overhead
+  (##sys#resize-trace-buffer 32)
   ;; configure logger
   (logger/output log-output)
   (logger/level log-level)
