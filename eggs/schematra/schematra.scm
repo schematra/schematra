@@ -1035,8 +1035,6 @@
                          (log-output (current-output-port))
                          (log-level 'info)
                          (log-format 'text))
-  ;; increase trace buffer so route frames survive spiffy's dispatch overhead
-  (##sys#resize-trace-buffer 32)
   ;; configure logger
   (logger/output log-output)
   (logger/level log-level)
