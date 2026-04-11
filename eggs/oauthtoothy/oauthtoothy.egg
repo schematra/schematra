@@ -7,7 +7,7 @@
  (category web)
  (dependencies schematra
 	       openssl
-	       http-client
+	       http-curl
 	       intarweb
 	       uri-common
 	       medea

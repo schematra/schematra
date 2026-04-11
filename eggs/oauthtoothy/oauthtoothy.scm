@@ -50,7 +50,7 @@
   srfi-18 ;; thread
   medea
   openssl
-  http-client
+  http-curl ;; instead of http-client
   intarweb
   uri-common
   ;; schematra modules
