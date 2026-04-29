@@ -39,19 +39,34 @@
   chicken.base
   chicken.string
   intarweb
+  uri-common
   spiffy ;; current-request
   schematra)
 
- ;; if the body has form-encoded params, add them to the params alist.
- ;; keys will be symbols
+ (define (parse-form-data body-string)
+   (let loop ((pairs (string-split body-string "&")) (acc '()))
+     (if (null? pairs)
+         (reverse acc)
+         (let ((parts (string-split (car pairs) "=")))
+           (loop (cdr pairs)
+                 (if (= (length parts) 2)
+                     (cons (cons (string->symbol (uri-decode-string (car parts)))
+                                 (uri-decode-string (cadr parts)))
+                           acc)
+                     acc))))))
+
+ ;; Buffers the raw body into (current-raw-body) so it remains accessible
+ ;; for signature verification after parsing. For application/x-www-form-urlencoded
+ ;; bodies, also parses params into (current-params) with symbol keys.
  (define (body-parser-middleware)
    (lambda (next)
      (let* ((request (current-request))
 	    (headers (request-headers request)))
-       (when (and (request-has-message-body? request)
-		  (eq? 'application/x-www-form-urlencoded
-		       (header-value 'content-type headers)))
-	 ;; update params with parsed data from request
-	 (current-params (append (read-urlencoded-request-data request) (current-params))))
+       (when (request-has-message-body? request)
+         (let ((raw (request-body-string request)))
+           (current-raw-body raw)
+           (when (eq? 'application/x-www-form-urlencoded
+                      (header-value 'content-type headers))
+             (current-params (append (parse-form-data raw) (current-params))))))
        (next))))
  )

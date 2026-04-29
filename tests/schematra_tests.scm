@@ -189,11 +189,23 @@
                (use-middleware! (body-parser-middleware))
                (post "/form"
                      (let ((name (alist-ref 'name (current-params))))
-                       (string-append "name=" (or name "none")))))))
+                       (string-append "name=" (or name "none"))))
+               (post "/raw"
+                     (or (current-raw-body) "no-body"))
+               (post "/webhook"
+                     (or (current-raw-body) "no-body")))))
     (test "Form body parsed" "name=Alice"
           (test-route-body app 'POST "/form"
                            headers: '((content-type application/x-www-form-urlencoded))
-                           body: "name=Alice"))))
+                           body: "name=Alice"))
+    (test "Raw body available after form parse" "name=Alice"
+          (test-route-body app 'POST "/raw"
+                           headers: '((content-type application/x-www-form-urlencoded))
+                           body: "name=Alice"))
+    (test "Raw body available for non-form content type" "{\"event\":\"push\"}"
+          (test-route-body app 'POST "/webhook"
+                           headers: '((content-type application/json))
+                           body: "{\"event\":\"push\"}"))))
 
 ;; ============================================================
 ;; Results

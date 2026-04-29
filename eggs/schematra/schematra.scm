@@ -41,6 +41,7 @@
  sse write-sse-data
  current-body
  current-params
+ current-raw-body
  current-app
  with-schematra-app
  schematra/make-app
@@ -853,6 +854,8 @@
 
 (define current-params (make-parameter '()))
 
+(define current-raw-body (make-parameter #f))
+
 ;; from spiffy.scm
 (define (call-with-input-file* file proc)
   (call-with-input-file file
@@ -887,6 +890,7 @@
         (parameterize ((request-cookies (alist->hash-table raw-cookies))
                        (response-cookies (make-hash-table))
                        (current-body #f)
+                       (current-raw-body #f)
                        (current-params '()))
           (let* ((handler (car resource))
                  (route-params (cadr resource)))
