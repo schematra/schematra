@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1-labs
 FROM alpine
 RUN apk update \
-    && apk add build-base bash git curl openssl-dev hiredis hiredis-dev \
+    && apk add build-base bash git curl openssl-dev hiredis hiredis-dev curl-dev \
     && rm -rf /var/cache/apk/*
 ARG CHICKEN_VERSION
 ENV CHICKEN_VERSION=${CHICKEN_VERSION:-5.4.0}
