@@ -444,7 +444,7 @@ Schematra uses the [logger](https://forgejo.rolando.cl/cpm/logger-egg) egg for s
 
 ### Body Parser Middleware
 
-The body parser middleware automatically parses form-encoded request bodies and makes form data available through `(current-params)`. This is essential for handling HTML forms and POST requests with form data.
+The body parser middleware reads request bodies and makes them available for inspection and parsing. For `application/x-www-form-urlencoded` requests it also parses form data into `(current-params)`. The raw, unmodified body bytes are always available via `(current-raw-body)`, which is useful for verifying HMAC signatures on webhook payloads.
 
 #### Installation and Usage
 
@@ -458,9 +458,8 @@ The body parser middleware automatically parses form-encoded request bodies and 
 #### How It Works
 
 The middleware automatically:
-- Detects requests with `Content-Type: application/x-www-form-urlencoded`
-- Parses the request body into key-value pairs
-- Adds the parsed form data to the current parameters alist
+- Reads and buffers the full request body into `(current-raw-body)` for any request that has a message body
+- For `Content-Type: application/x-www-form-urlencoded` requests, also parses the body into key-value pairs and adds them to `(current-params)`
 - Form field keys become **symbol keys** in the parameters
 
 #### Example Usage
@@ -497,6 +496,31 @@ The middleware automatically:
             (name    (alist-ref 'name (current-params))))          ; Symbol key (form data)
         (update-user! user-id name email)
         (ccup->html `[p "User updated successfully"])))
+```
+
+#### Webhook Signature Verification
+
+Because `(current-raw-body)` holds the original bytes before any parsing, you can use it to verify HMAC signatures sent by webhook providers (e.g., GitHub, Stripe):
+
+```scheme
+(import schematra schematra-body-parser hmac sha2 base64)
+
+(use-middleware! (body-parser-middleware))
+
+(define (valid-signature? body signature secret)
+  (let* ((mac     (hmac secret (sha256-primitive)))
+         (digest  (string->base64 (mac body))))
+    (string=? digest signature)))
+
+(post ("/webhook")
+      (let* ((sig  (header-value 'x-hub-signature-256
+                                 (request-headers (current-request))))
+             (body (current-raw-body)))
+        (unless (valid-signature? body sig "my-secret")
+          (halt 'unauthorized "Bad signature"))
+        ;; process the verified payload
+        (process-event! body)
+        "ok"))
 ```
 
 #### Parameter Key Types
@@ -975,6 +999,20 @@ Example:
 
 ;; Access query parameter  
 (alist-ref 'format (current-params))    ; => "json"
+```
+
+#### `(current-raw-body)`
+Returns the unmodified request body string, or `#f` if there was no body. Set by `body-parser-middleware` before any parsing occurs, so it is always the original bytes regardless of content type.
+
+```scheme
+;; Verify a webhook signature before processing
+(post ("/webhook")
+      (let ((raw (current-raw-body))
+            (sig (header-value 'x-hub-signature-256
+                               (request-headers (current-request)))))
+        (unless (valid-signature? raw sig secret)
+          (halt 'unauthorized "Bad signature"))
+        (process-event! raw)))
 ```
 
 #### `(halt status [body] [headers])`
