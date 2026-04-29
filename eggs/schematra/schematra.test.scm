@@ -158,6 +158,7 @@
 (define (test-route app method path #!key headers body cookies)
   (with-schematra-app app
     ((current-request (make-mock-request method path headers: headers body: body cookies: cookies))
+     (current-raw-body (or body ""))
      (current-response (make-mock-response)))
     (lambda ()
       (schematra-route-request (current-request)))))
