@@ -139,6 +139,52 @@ EXAMPLE
 EXAMPLE
 ))
 
+(define ex7 '(#<<EXAMPLE
+;; Webhook handler with HMAC-SHA256 signature verification
+;; body-parser-middleware buffers the raw body so you can verify it
+(import schematra schematra.body-parser hmac sha2 message-digest)
+
+(use-middleware! (body-parser-middleware))
+
+(define (hmac-sha256-hex key data)
+  (message-digest->string
+   (hmac-message-digest (open-input-string key)
+                        sha256-primitive
+                        (open-input-string data) byte)))
+
+(define (signature-valid? secret raw sig)
+  (and sig
+       (string=? sig (string-append "sha256="
+                                    (hmac-sha256-hex secret raw)))))
+
+(post "/webhook"
+  (let* ((raw (current-raw-body))
+         (sig (alist-ref "x-hub-signature-256"
+                         (request-headers (current-request)) equal?)))
+    (if (signature-valid? (get-environment-variable "WEBHOOK_SECRET") raw sig)
+        (begin
+          (process-event! (read-json raw))
+          '(ok "Received"))
+        '(forbidden "Invalid signature"))))
+
+;; Test without a live server — body: sets current-raw-body automatically
+(define secret "test-secret")
+(define payload "{\"action\":\"push\"}")
+(define valid-sig (string-append "sha256=" (hmac-sha256-hex secret payload)))
+
+(test "rejects request with missing signature"
+  'forbidden
+  (test-route-status webhook-app 'POST "/webhook"
+                     body: payload))
+
+(test "accepts request with valid signature"
+  'ok
+  (test-route-status webhook-app 'POST "/webhook"
+                     body: payload
+                     headers: `((x-hub-signature-256 . ,valid-sig))))
+EXAMPLE
+))
+
 (define ex6 '(#<<EXAMPLE
 ;; Testing routes without a server - fast and isolated!
 (import test schematra schematra.test srfi-13 chicken.format medea)

@@ -56,7 +56,7 @@
         [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "https://github.com/schematra/schematra?tab=readme-ov-file#contributing")) "Contribute"]]
         [li [a.text-teal-200.hover:text-white.transition-colors (@ (href "https://raw.githubusercontent.com/schematra/schematra/refs/heads/main/LICENSE.md")) "License"]]]]]
      [.border-t.border-teal-700.mt-6.sm:mt-8.pt-6.sm:pt-8.text-center
-      [p.text-teal-300.text-xs.sm:text-sm "© 2025 Rolando Abarca. Released under BSD-3-Clause License - Schematra logo released under CC BY-NC 4.0"]]]])
+      [p.text-teal-300.text-xs.sm:text-sm "© 2026 Rolando Abarca. Released under BSD-3-Clause License - Schematra logo released under CC BY-NC 4.0"]]]])
 
 (define (layout page #!key (meta-title #f) (meta-description #f) (meta-image #f) (meta-url #f) (meta-type "website"))
   (let ((title (or meta-title "Schematra - Scheme Web Framework"))
@@ -200,7 +200,8 @@
       ,(code-box "Complete Web App" ex1 "A full authentication flow with sessions, forms, and redirects. Notice how natural HTML generation feels with Chiccup.")
       ,(code-box "JSON APIs Made Easy" ex4 "Write APIs that work with data, not strings. send-json-response handles serialization and headers automatically.")
       ,(code-box "Testing Without a Server" ex6 "Test your routes in milliseconds with isolated app instances. No HTTP server needed—just pure, fast unit tests.")
-      ,(code-box "OAuth2 Authentication" ex5 "Add Google OAuth2 login to your app with oauthtoothy. Complete social authentication in under 20 lines.")]]])
+      ,(code-box "OAuth2 Authentication" ex5 "Add Google OAuth2 login to your app with oauthtoothy. Complete social authentication in under 20 lines.")
+      ,(code-box "Webhook Signature Verification" ex7 "Verify webhook payloads from GitHub, Stripe, or any HMAC-SHA256 provider. body-parser-middleware buffers the raw body so your signature check sees exactly what was sent—and test-route sets it automatically so your tests don't need a live server.")]]])
 
 (define playground-examples 
   '((card . "[.max-w-md.mx-auto.bg-white.rounded-xl.shadow-md.overflow-hidden
@@ -264,7 +265,9 @@
 (define (load-blog-posts!)
   (set! *blog-posts-cache*
     (condition-case
-     (with-input-from-file "blog/posts.scm" read)
+     (sort (with-input-from-file "blog/posts.scm" read)
+           (lambda (a b)
+             (string>? (alist-ref 'date a) (alist-ref 'date b))))
      (e () '()))))
 
 (define (get-blog-posts)
