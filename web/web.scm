@@ -33,6 +33,7 @@
 
 (import
  chicken.port
+ chicken.sort
  chicken.string
  chicken.pretty-print
  chicken.process-context
