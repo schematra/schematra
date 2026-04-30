@@ -111,6 +111,4 @@
         (redirect "https://github.com/schematra/schematra"))
 
    (schematra-install)
-   (let* ((environment (or (get-environment-variable "SCHEMATRA_ENV") "production"))
-          (dev-env?    (string=? environment "development")))
-     (schematra-start development?: dev-env? nrepl?: #f))))
+   (schematra-start)))

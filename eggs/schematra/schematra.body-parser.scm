@@ -62,7 +62,9 @@
    (lambda (next)
      (let* ((request (current-request))
 	    (headers (request-headers request)))
-       (when (request-has-message-body? request)
+       ;; RFC 7230 §3.3: a request has a body only if Content-Length or Transfer-Encoding is present
+       (when (or (header-value 'content-length headers)
+                 (header-value 'transfer-encoding headers))
          (let ((raw (request-body-string request)))
            (current-raw-body raw)
            (when (eq? 'application/x-www-form-urlencoded
