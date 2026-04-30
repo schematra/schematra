@@ -43,17 +43,8 @@
   spiffy ;; current-request
   schematra)
 
- (define (parse-form-data body-string)
-   (let loop ((pairs (string-split body-string "&")) (acc '()))
-     (if (null? pairs)
-         (reverse acc)
-         (let ((parts (string-split (car pairs) "=")))
-           (loop (cdr pairs)
-                 (if (= (length parts) 2)
-                     (cons (cons (string->symbol (uri-decode-string (car parts)))
-                                 (uri-decode-string (cadr parts)))
-                           acc)
-                     acc))))))
+  (define (parse-form-data body-string)
+    (form-urldecode body-string))
 
  ;; Buffers the raw body into (current-raw-body) so it remains accessible
  ;; for signature verification after parsing. For application/x-www-form-urlencoded

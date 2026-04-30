@@ -196,15 +196,23 @@
                      (or (current-raw-body) "no-body")))))
     (test "Form body parsed" "name=Alice"
           (test-route-body app 'POST "/form"
-                           headers: '((content-type application/x-www-form-urlencoded))
+                           headers: '((content-type application/x-www-form-urlencoded)
+                                      (content-length 10))
                            body: "name=Alice"))
+    (test "Form body decodes plus as space" "name=foo bar"
+          (test-route-body app 'POST "/form"
+                           headers: '((content-type application/x-www-form-urlencoded)
+                                      (content-length 12))
+                           body: "name=foo+bar"))
     (test "Raw body available after form parse" "name=Alice"
           (test-route-body app 'POST "/raw"
-                           headers: '((content-type application/x-www-form-urlencoded))
+                           headers: '((content-type application/x-www-form-urlencoded)
+                                      (content-length 10))
                            body: "name=Alice"))
     (test "Raw body available for non-form content type" "{\"event\":\"push\"}"
           (test-route-body app 'POST "/webhook"
-                           headers: '((content-type application/json))
+                           headers: '((content-type application/json)
+                                      (content-length 16))
                            body: "{\"event\":\"push\"}"))))
 
 ;; ============================================================
