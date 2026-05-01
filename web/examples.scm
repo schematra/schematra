@@ -141,7 +141,7 @@ EXAMPLE
 
 (define ex7 '(#<<EXAMPLE
 ;; Webhook handler with HMAC-SHA256 signature verification
-;; body-parser-middleware buffers the raw body so you can verify it
+;; body-parser-middleware captures a replayable request body so you can verify it
 (import schematra schematra.body-parser hmac sha2 message-digest)
 
 (use-middleware! (body-parser-middleware))
@@ -158,16 +158,16 @@ EXAMPLE
                                     (hmac-sha256-hex secret raw)))))
 
 (post "/webhook"
-  (let* ((raw (current-raw-body))
+  (let* ((raw (request-body-string (current-request-body)))
          (sig (alist-ref "x-hub-signature-256"
-                         (request-headers (current-request)) equal?)))
+                          (request-headers (current-request)) equal?)))
     (if (signature-valid? (get-environment-variable "WEBHOOK_SECRET") raw sig)
         (begin
           (process-event! (read-json raw))
           '(ok "Received"))
         '(forbidden "Invalid signature"))))
 
-;; Test without a live server — body: sets current-raw-body automatically
+;; Test without a live server — body: is captured by body-parser-middleware
 (define secret "test-secret")
 (define payload "{\"action\":\"push\"}")
 (define valid-sig (string-append "sha256=" (hmac-sha256-hex secret payload)))

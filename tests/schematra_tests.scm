@@ -4,6 +4,7 @@
 (import scheme)
 (import
  chicken.base
+ chicken.io
  chicken.string
  chicken.format
  chicken.process-context
@@ -185,15 +186,29 @@
 ;; 11. Body Parser
 ;; ============================================================
 (test-group "Body parser"
-  (let ((app (with-test-app a
-               (use-middleware! (body-parser-middleware))
-               (post "/form"
-                     (let ((name (alist-ref 'name (current-params))))
-                       (string-append "name=" (or name "none"))))
-               (post "/raw"
-                     (or (current-raw-body) "no-body"))
-               (post "/webhook"
-                     (or (current-raw-body) "no-body")))))
+  (let* ((multipart-body (string-append "--abc\r\n"
+                                        "Content-Disposition: form-data; name=\"name\"\r\n"
+                                        "\r\n"
+                                        "Alice\r\n"
+                                        "--abc--\r\n"))
+         (app (with-test-app a
+                (use-middleware! (body-parser-middleware))
+                (post "/form"
+                      (let ((name (alist-ref 'name (current-params))))
+                        (string-append "name=" (or name "none"))))
+                (post "/body-string"
+                      (let ((body (current-request-body)))
+                        (if body (request-body-string body) "no-body")))
+                (post "/body-replay"
+                      (let* ((body (current-request-body))
+                             (first (read-string #f (request-body-port body)))
+                             (second (read-string #f (request-body-port body))))
+                        (string-append first "|" second)))
+                (post "/body-size"
+                      (number->string (request-body-size (current-request-body))))
+                (post "/multipart"
+                      (let ((name (alist-ref 'name (read-current-multipart-form-data))))
+                        (string-append "name=" (or name "none")))))))
     (test "Form body parsed" "name=Alice"
           (test-route-body app 'POST "/form"
                            headers: '((content-type application/x-www-form-urlencoded)
@@ -204,16 +219,32 @@
                            headers: '((content-type application/x-www-form-urlencoded)
                                       (content-length 12))
                            body: "name=foo+bar"))
-    (test "Raw body available after form parse" "name=Alice"
-          (test-route-body app 'POST "/raw"
+    (test "Request body string available after form parse" "name=Alice"
+          (test-route-body app 'POST "/body-string"
                            headers: '((content-type application/x-www-form-urlencoded)
-                                      (content-length 10))
+                                       (content-length 10))
                            body: "name=Alice"))
-    (test "Raw body available for non-form content type" "{\"event\":\"push\"}"
-          (test-route-body app 'POST "/webhook"
+    (test "Request body string available for non-form content type" "{\"event\":\"push\"}"
+          (test-route-body app 'POST "/body-string"
                            headers: '((content-type application/json)
-                                      (content-length 16))
-                           body: "{\"event\":\"push\"}"))))
+                                       (content-length 16))
+                           body: "{\"event\":\"push\"}"))
+    (test "Request body port is replayable" "abc|abc"
+          (test-route-body app 'POST "/body-replay"
+                           headers: '((content-type application/octet-stream)
+                                      (content-length 3))
+                           body: "abc"))
+    (test "Request body spools above threshold" "6"
+          (parameterize ((request-body-spool-threshold 3))
+            (test-route-body app 'POST "/body-size"
+                             headers: '((content-type application/octet-stream)
+                                        (content-length 6))
+                             body: "abcdef")))
+    (test "Multipart form data decodes from captured body" "name=Alice"
+          (test-route-body app 'POST "/multipart"
+                           headers: `((content-type #(multipart/form-data ((boundary . "abc"))))
+                                      (content-length ,(string-length multipart-body)))
+                           body: multipart-body))))
 
 ;; ============================================================
 ;; Results

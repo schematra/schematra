@@ -6,7 +6,7 @@ Schematra 0.5 and 0.6 landed quietly but brought several features that have mean
 
 If you're receiving webhooks from GitHub, Stripe, or any other provider that signs payloads with HMAC-SHA256, you need to verify the signature against the *exact bytes* that were sent — not a parsed or re-serialized version of the body. This is why body parsers that eagerly decode the payload before your handler runs are a problem.
 
-Schematra's `body-parser-middleware` now buffers the raw request body and exposes it via `current-raw-body`, so your signature check sees precisely what arrived on the wire:
+Schematra's `body-parser-middleware` now captures the request body and exposes it via `current-request-body`, so your signature check sees precisely what arrived on the wire:
 
 <pre><code class="language-scheme">(import schematra schematra.body-parser hmac sha2 message-digest)
 
@@ -19,7 +19,7 @@ Schematra's `body-parser-middleware` now buffers the raw request body and expose
                         (open-input-string data) byte)))
 
 (post "/webhook"
-  (let* ((raw (current-raw-body))
+  (let* ((raw (request-body-string (current-request-body)))
          (sig (alist-ref "x-hub-signature-256"
                          (request-headers (current-request)) equal?))
          (expected (string-append "sha256="
@@ -33,11 +33,11 @@ Schematra's `body-parser-middleware` now buffers the raw request body and expose
         '(forbidden "Invalid signature"))))
 </code></pre>
 
-`current-raw-body` returns the raw request body as a string regardless of content-type. The parsed parameters (via `current-params`) remain available as usual.
+`current-request-body` returns a replayable request body object regardless of content-type. Use `request-body-string` when you need the exact body bytes as a string. The parsed parameters (via `current-params`) remain available as usual.
 
 ### Testing Webhook Routes Without a Server
 
-`test-route` now sets `current-raw-body` automatically when you pass a `body:` argument, so your webhook tests don't need an actual HTTP server:
+`test-route` passes the request body through middleware when you pass a `body:` argument, so your webhook tests don't need an actual HTTP server:
 
 <pre><code class="language-scheme">(import test schematra schematra.test)
 
@@ -124,8 +124,8 @@ Token exchange requests (the step where the authorization code is swapped for an
 
 ## Upgrade Notes
 
-- **0.4 → 0.5**: No breaking changes. Add `(import schematra.body-parser)` if you want the raw body feature.
-- **0.5 → 0.6**: No breaking changes. `current-raw-body` returns `""` (empty string) if no body was sent, so existing code that ignores it is unaffected.
+- **0.4 → 0.5**: No breaking changes. Add `(import schematra.body-parser)` if you want request body parsing.
+- **0.5 → 0.6**: No breaking changes. Request bodies are available through `current-request-body` when `body-parser-middleware` is installed.
 - **oauthtoothy 0.2 → 0.3**: The middleware API is unchanged. The http-client backend is selected by default so existing code continues to work.
 
 ---

@@ -201,7 +201,7 @@
       ,(code-box "JSON APIs Made Easy" ex4 "Write APIs that work with data, not strings. send-json-response handles serialization and headers automatically.")
       ,(code-box "Testing Without a Server" ex6 "Test your routes in milliseconds with isolated app instances. No HTTP server needed—just pure, fast unit tests.")
       ,(code-box "OAuth2 Authentication" ex5 "Add Google OAuth2 login to your app with oauthtoothy. Complete social authentication in under 20 lines.")
-      ,(code-box "Webhook Signature Verification" ex7 "Verify webhook payloads from GitHub, Stripe, or any HMAC-SHA256 provider. body-parser-middleware buffers the raw body so your signature check sees exactly what was sent—and test-route sets it automatically so your tests don't need a live server.")]]])
+      ,(code-box "Webhook Signature Verification" ex7 "Verify webhook payloads from GitHub, Stripe, or any HMAC-SHA256 provider. body-parser-middleware captures a replayable request body so your signature check sees exactly what was sent.")]]])
 
 (define playground-examples 
   '((card . "[.max-w-md.mx-auto.bg-white.rounded-xl.shadow-md.overflow-hidden

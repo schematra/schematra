@@ -40,6 +40,7 @@
  ;; Procedures
  sse write-sse-data
  current-body
+ current-request-body
  current-params
  current-raw-body
  current-app
@@ -52,7 +53,13 @@
  halt redirect
  cookie-set! cookie-delete! cookie-ref
  use-middleware!
+ request-body-spool-threshold
+ request-body?
+ capture-request-body
+ request-body-port
  request-body-string
+ request-body-size
+ request-body-cleanup!
  send-json-response
  schematra-route-request
  schematra-install
@@ -64,9 +71,10 @@
  chicken.base
  chicken.module   ;; export
  chicken.platform ;; chicken-version & register-feature!
- chicken.process-context
- chicken.io
- chicken.condition
+  chicken.process-context
+  chicken.io
+  chicken.port
+  chicken.condition
  chicken.string
  chicken.file
  chicken.pathname
@@ -698,38 +706,90 @@
      response
      status: 'internal-server-error)]))
 
-;; Extract the request body as a string
-;;
-;; Reads the HTTP request body from the request port and returns it as a string.
-;; This function handles both requests with and without Content-Length headers.
-;; It's commonly used in POST request handlers to access form data, JSON payloads,
-;; or other request body content.
-;;
-;; ### Parameters
-;;   - `request`: HTTP request object containing headers, method, URI, and port
-;;
-;; ### Returns
-;; A string containing the complete request body content
-;;
-;; ### Behavior
-;;   - If Content-Length header is present, reads exactly that many bytes
-;;   - If Content-Length header is missing, reads until EOF
-;;   - Returns empty string if no body content is available
-;;
-;; ### Examples
-;; ```scheme
-;; (post ("/submit" req params)
-;;       (let ((body (request-body-string req)))
-;;         (format "Received: ~A" body)))
-;; ```
-(define (request-body-string request)
-  (let* ((in-port (request-port request))
+;; Request bodies are captured once by middleware, then replayed through
+;; fresh ports so multiple consumers never compete for the original request port.
+(define-record request-body storage data size)
+
+(define request-body-spool-threshold (make-parameter (* 5 1024 1024)))
+
+(define (write-string-chunks chunks out)
+  (for-each (lambda (chunk) (display chunk out)) chunks))
+
+(define (copy-port-bytes in out length)
+  (let loop ((remaining length))
+    (when (> remaining 0)
+      (let* ((chunk-size (min remaining 65536))
+             (chunk (read-string chunk-size in)))
+        (unless (eof-object? chunk)
+          (let ((read (string-length chunk)))
+            (display chunk out)
+            (when (> read 0)
+              (loop (- remaining read)))))))))
+
+(define (copy-port-to-eof in out)
+  (let loop ()
+    (let ((chunk (read-string 65536 in)))
+      (unless (eof-object? chunk)
+        (display chunk out)
+        (loop)))))
+
+(define (make-file-request-body path size)
+  (make-request-body 'file path size))
+
+(define (capture-request-body request #!optional threshold)
+  (let* ((threshold (or threshold (request-body-spool-threshold)))
+         (in-port (request-port request))
          (headers (request-headers request))
-         (content-length (header-value 'content-length headers #f))
-         (body (if content-length
-                   (read-string content-length in-port)
-                   (read-string #f in-port))))
-    body))
+         (content-length (header-value 'content-length headers #f)))
+    (if content-length
+        (if (> content-length threshold)
+            (let ((path (create-temporary-file "schematra-request-body")))
+              (call-with-output-file path
+                (lambda (out)
+                  (copy-port-bytes in-port out content-length))
+                #:binary)
+              (make-file-request-body path content-length))
+            (let ((body (read-string content-length in-port)))
+              (make-request-body 'string body (string-length body))))
+        (let loop ((chunks '())
+                   (size 0))
+          (let ((chunk (read-string 65536 in-port)))
+            (if (eof-object? chunk)
+                (let ((body (apply string-append (reverse chunks))))
+                  (make-request-body 'string body size))
+                (let* ((chunk-size (string-length chunk))
+                       (new-size (+ size chunk-size)))
+                  (if (> new-size threshold)
+                      (let ((path (create-temporary-file "schematra-request-body")))
+                        (call-with-output-file path
+                          (lambda (out)
+                            (write-string-chunks (reverse chunks) out)
+                            (display chunk out)
+                            (copy-port-to-eof in-port out))
+                          #:binary)
+                        (make-file-request-body path #f))
+                      (loop (cons chunk chunks) new-size)))))))))
+
+(define (request-body-port body)
+  (case (request-body-storage body)
+    ((string) (open-input-string (request-body-data body)))
+    ((file) (open-input-file (request-body-data body) #:binary))
+    (else (error 'request-body-port "unsupported request body storage"))))
+
+(define (request-body-string body)
+  (case (request-body-storage body)
+    ((string) (request-body-data body))
+    ((file)
+     (call-with-input-file* (request-body-data body)
+       (lambda (in)
+         (read-string #f in))))
+    (else (error 'request-body-string "unsupported request body storage"))))
+
+(define (request-body-cleanup! body)
+  (when (and body
+             (eq? 'file (request-body-storage body))
+             (file-exists? (request-body-data body)))
+    (delete-file (request-body-data body))))
 
 (define request-cookies (make-parameter #f))
 (define response-cookies (make-parameter #f))
@@ -852,6 +912,8 @@
 
 (define current-body (make-parameter #f))
 
+(define current-request-body (make-parameter #f))
+
 (define current-params (make-parameter '()))
 
 (define current-raw-body (make-parameter #f))
@@ -888,10 +950,11 @@
          (resource (and resource-tree (find-resource normalized-path resource-tree))))
     (if resource
         (parameterize ((request-cookies (alist->hash-table raw-cookies))
-                       (response-cookies (make-hash-table))
-                       (current-body #f)
-                       (current-raw-body #f)
-                       (current-params '()))
+                        (response-cookies (make-hash-table))
+                        (current-body #f)
+                        (current-request-body #f)
+                        (current-raw-body #f)
+                        (current-params '()))
           (let* ((handler (car resource))
                  (route-params (cadr resource)))
             (current-params (append route-params (uri-query uri)))

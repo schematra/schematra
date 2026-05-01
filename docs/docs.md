@@ -444,7 +444,7 @@ Schematra uses the [logger](https://forgejo.rolando.cl/cpm/logger-egg) egg for s
 
 ### Body Parser Middleware
 
-The body parser middleware reads request bodies and makes them available for inspection and parsing. For `application/x-www-form-urlencoded` requests it also parses form data into `(current-params)`. The raw, unmodified body bytes are always available via `(current-raw-body)`, which is useful for verifying HMAC signatures on webhook payloads.
+The body parser middleware reads request bodies and makes them available for inspection and parsing. For `application/x-www-form-urlencoded` requests it also parses form data into `(current-params)`. The captured body is available via `(current-request-body)`, which can be replayed as a fresh port or materialized as a string for HMAC signature verification.
 
 #### Installation and Usage
 
@@ -458,7 +458,7 @@ The body parser middleware reads request bodies and makes them available for ins
 #### How It Works
 
 The middleware automatically:
-- Reads and buffers the full request body into `(current-raw-body)` for any request that has a message body
+- Reads the full request body into `(current-request-body)` for any request that has a message body, spooling bodies larger than `(request-body-spool-threshold)` to a temp file
 - For `Content-Type: application/x-www-form-urlencoded` requests, also parses the body into key-value pairs and adds them to `(current-params)`
 - Form field keys become **symbol keys** in the parameters
 
@@ -500,7 +500,7 @@ The middleware automatically:
 
 #### Webhook Signature Verification
 
-Because `(current-raw-body)` holds the original bytes before any parsing, you can use it to verify HMAC signatures sent by webhook providers (e.g., GitHub, Stripe):
+Because `(current-request-body)` holds the original bytes before any parsing, you can use `(request-body-string (current-request-body))` to verify HMAC signatures sent by webhook providers (e.g., GitHub, Stripe):
 
 ```scheme
 (import schematra schematra-body-parser hmac sha2 base64)
@@ -515,7 +515,7 @@ Because `(current-raw-body)` holds the original bytes before any parsing, you ca
 (post ("/webhook")
       (let* ((sig  (header-value 'x-hub-signature-256
                                  (request-headers (current-request))))
-             (body (current-raw-body)))
+             (body (request-body-string (current-request-body))))
         (unless (valid-signature? body sig "my-secret")
           (halt 'unauthorized "Bad signature"))
         ;; process the verified payload
@@ -1001,13 +1001,13 @@ Example:
 (alist-ref 'format (current-params))    ; => "json"
 ```
 
-#### `(current-raw-body)`
-Returns the unmodified request body string, or `#f` if there was no body. Set by `body-parser-middleware` before any parsing occurs, so it is always the original bytes regardless of content type.
+#### `(current-request-body)`
+Returns a replayable request body object, or `#f` if there was no body. Set by `body-parser-middleware` before any parsing occurs, so it contains the original bytes regardless of content type. Use `(request-body-port body)` for a fresh input port, or `(request-body-string body)` when you explicitly want the whole body as a string.
 
 ```scheme
 ;; Verify a webhook signature before processing
 (post ("/webhook")
-      (let ((raw (current-raw-body))
+      (let ((raw (request-body-string (current-request-body)))
             (sig (header-value 'x-hub-signature-256
                                (request-headers (current-request)))))
         (unless (valid-signature? raw sig secret)

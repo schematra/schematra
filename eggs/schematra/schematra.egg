@@ -14,6 +14,7 @@
                srfi-69
 	       chiccup
 	       medea
+	       multipart-form-data
 	       logger)
  (component-options
   (csc-options "-O3" "-d0"))

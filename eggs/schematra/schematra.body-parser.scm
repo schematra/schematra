@@ -32,34 +32,63 @@
 
 (module
  schematra.body-parser
- (body-parser-middleware)
+ (body-parser-middleware
+  read-current-multipart-form-data)
 
  (import scheme)
  (import
-  chicken.base
-  chicken.string
-  intarweb
-  uri-common
-  spiffy ;; current-request
-  schematra)
+   chicken.base
+   chicken.string
+   intarweb
+   multipart-form-data
+   uri-common
+   spiffy ;; current-request
+   schematra)
 
   (define (parse-form-data body-string)
     (form-urldecode body-string))
 
- ;; Buffers the raw body into (current-raw-body) so it remains accessible
- ;; for signature verification after parsing. For application/x-www-form-urlencoded
- ;; bodies, also parses params into (current-params) with symbol keys.
- (define (body-parser-middleware)
-   (lambda (next)
-     (let* ((request (current-request))
-	    (headers (request-headers request)))
-       ;; RFC 7230 §3.3: a request has a body only if Content-Length or Transfer-Encoding is present
-       (when (or (header-value 'content-length headers)
-                 (header-value 'transfer-encoding headers))
-         (let ((raw (request-body-string request)))
-           (current-raw-body raw)
-           (when (eq? 'application/x-www-form-urlencoded
-                      (header-value 'content-type headers))
-             (current-params (append (parse-form-data raw) (current-params))))))
-       (next))))
- )
+  (define (read-current-multipart-form-data #!optional max-length)
+    (let* ((body (current-request-body))
+           (headers (request-headers (current-request)))
+           (content-type (header-value 'content-type headers #f))
+           (boundary (header-param 'boundary 'content-type headers #f)))
+      (unless body
+        (error 'read-current-multipart-form-data "no current request body; install body-parser-middleware first"))
+      (unless (eq? 'multipart/form-data content-type)
+        (error 'read-current-multipart-form-data "request content type is not multipart/form-data" content-type))
+      (unless boundary
+        (error 'read-current-multipart-form-data "multipart/form-data request is missing a boundary"))
+      (let ((port (request-body-port body)))
+        (dynamic-wind
+          void
+          (lambda ()
+            (if max-length
+                (multipart-form-data-decode port boundary max-length)
+                (multipart-form-data-decode port boundary)))
+          (lambda () (close-input-port port))))))
+
+  ;; Captures the request body into (current-request-body) so it can be replayed
+  ;; by later consumers. For application/x-www-form-urlencoded bodies, also parses
+  ;; params into (current-params) with symbol keys.
+  (define (body-parser-middleware)
+    (lambda (next)
+      (let* ((request (current-request))
+	    (headers (request-headers request))
+             (captured-body #f))
+        ;; RFC 7230 §3.3: a request has a body only if Content-Length or Transfer-Encoding is present
+        (when (or (header-value 'content-length headers)
+                  (header-value 'transfer-encoding headers))
+          (let ((body (capture-request-body request)))
+            (set! captured-body body)
+            (current-request-body body)
+            (when (eq? 'application/x-www-form-urlencoded
+                       (header-value 'content-type headers))
+              (current-params (append (parse-form-data (request-body-string body))
+                                      (current-params))))))
+        (dynamic-wind
+          void
+          next
+          (lambda ()
+            (request-body-cleanup! captured-body))))))
+  )
