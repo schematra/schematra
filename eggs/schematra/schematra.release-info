@@ -1,5 +1,6 @@
 (repo git "https://github.com/schematra/{egg-name}")
 (uri targz "https://github.com/schematra/schematra/releases/download/{egg-name}-{egg-release}/{egg-name}-{egg-release}.tar.gz")
+(release "0.6.7")
 (release "0.6.2")
 (release "0.6.1")
 (release "0.6.0")
