@@ -460,6 +460,7 @@ The body parser middleware reads request bodies and makes them available for ins
 The middleware automatically:
 - Reads the full request body into `(current-request-body)` for any request that has a message body, spooling bodies larger than `(request-body-spool-threshold)` to a temp file
 - For `Content-Type: application/x-www-form-urlencoded` requests, also parses the body into key-value pairs and adds them to `(current-params)`
+- For `Content-Type: multipart/form-data` requests, captures the body but does not automatically merge fields into `(current-params)`; use `(read-current-multipart-form-data)` to decode multipart fields and files explicitly
 - Form field keys become **symbol keys** in the parameters
 
 #### Example Usage
@@ -497,6 +498,28 @@ The middleware automatically:
         (update-user! user-id name email)
         (ccup->html `[p "User updated successfully"])))
 ```
+
+#### Multipart Forms
+
+`body-parser-middleware` captures multipart request bodies into `(current-request-body)`, but it does not automatically parse multipart fields into `(current-params)`. Decode multipart bodies explicitly with `(read-current-multipart-form-data)`; this reads from a fresh replayable body port instead of the already-drained request port.
+
+```scheme
+(import schematra schematra-body-parser multipart-form-data)
+
+(use-middleware! (body-parser-middleware))
+
+(post ("/upload")
+      (let* ((parts  (read-current-multipart-form-data))
+             (title  (alist-ref 'title parts))
+             (upload (alist-ref 'file parts)))
+        (when (multipart-file? upload)
+          (let ((filename (multipart-file-filename upload))
+                (port     (multipart-file-port upload)))
+            (save-upload! filename port)))
+        (string-append "Uploaded: " title)))
+```
+
+Do not call `read-multipart-form-data` from the `multipart-form-data` egg after installing `body-parser-middleware`; the original request port has already been consumed. Use `read-current-multipart-form-data` instead.
 
 #### Webhook Signature Verification
 
@@ -1013,6 +1036,17 @@ Returns a replayable request body object, or `#f` if there was no body. Set by `
         (unless (valid-signature? raw sig secret)
           (halt 'unauthorized "Bad signature"))
         (process-event! raw)))
+```
+
+#### `(read-current-multipart-form-data [max-length])`
+Decodes the current `multipart/form-data` request body captured by `body-parser-middleware` and returns the alist produced by `multipart-form-data-decode`.
+
+This helper opens a fresh `(request-body-port (current-request-body))`, so it is safe to call after `body-parser-middleware` has consumed the original request port. It raises an error if there is no captured body, if the request is not `multipart/form-data`, or if the `boundary` parameter is missing.
+
+```scheme
+(post ("/upload")
+      (let ((parts (read-current-multipart-form-data)))
+        (alist-ref 'title parts)))
 ```
 
 #### `(halt status [body] [headers])`
