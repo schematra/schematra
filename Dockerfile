@@ -12,6 +12,13 @@ RUN curl -LO "https://code.call-cc.org/releases/${CHICKEN_VERSION}/chicken-${CHI
 # install dependencies earlier - faster builds for the common case
 WORKDIR /schematra
 COPY deps.txt /schematra/
+# install custom setup.defaults to add eggs.rolando.cl
+RUN cat <<EOS > /usr/local/share/chicken/setup.defaults
+(version 2)
+(map (srfi-4 ->))
+(server "http://eggs.rolando.cl/henrietta.cgi")
+(server "http://code.call-cc.org/cgi-bin/henrietta.cgi")
+EOS
 RUN chicken-install $(cat deps.txt)
 
 # Now install schematra & core eggs
