@@ -1,6 +1,6 @@
 # What's New in Schematra 0.6
 
-Schematra 0.5 and 0.6 landed quietly but brought several features that have meaningfully changed how real apps are built with the framework. This post covers everything that's new since the 0.4 release: webhook signature verification, Server-Sent Events, better exception handling, testing improvements, and a new HTTP client backend in oauthtoothy.
+Schematra 0.5 and 0.6 landed quietly but brought several features that have meaningfully changed how real apps are built with the framework. This post covers everything that's new since the 0.4 release: replayable request bodies, webhook signature verification, Server-Sent Events, better exception handling, testing improvements, and a new HTTP client backend in oauthtoothy.
 
 ## Webhook Signature Verification (0.6.2–0.6.3)
 
@@ -34,6 +34,58 @@ Schematra's `body-parser-middleware` now captures the request body and exposes i
 </code></pre>
 
 `current-request-body` returns a replayable request body object regardless of content-type. Use `request-body-string` when you need the exact body bytes as a string. The parsed parameters (via `current-params`) remain available as usual.
+
+## Replayable Request Bodies
+
+The webhook use case exposed a more general problem: request body ports are normally one-shot. Once middleware reads the body, any later code that tries to read from the original request port sees EOF or, in some cases, waits forever. That is especially easy to hit with multipart forms, where code often reaches for `read-multipart-form-data` after middleware has already run.
+
+Schematra now captures the body once and stores it as a replayable request body object:
+
+<pre><code class="language-scheme">(define body (current-request-body))
+
+;; Materialize the body when you really need a string.
+(request-body-string body)
+
+;; Or ask for a fresh port each time.
+(let ((first  (request-body-port body))
+      (second (request-body-port body)))
+  ...)
+</code></pre>
+
+`request-body-port` always returns a fresh input port for the captured body. If the body was small, that port reads from the in-memory string. If the body was large, it reads from a temporary file. Route code does not have to care which backing store was used.
+
+By default, bodies larger than 5MB are spooled to disk. You can tune that with `request-body-spool-threshold`:
+
+<pre><code class="language-scheme">;; Spool bodies larger than 1MB.
+(request-body-spool-threshold (* 1024 1024))
+</code></pre>
+
+This keeps the common case simple while avoiding a surprise giant string allocation when someone uploads a file.
+
+### Multipart Forms
+
+Multipart bodies are captured, but Schematra does not automatically merge multipart fields into `current-params`. Multipart forms can contain files, headers, and ports, so automatically flattening them into the regular params list would hide too much detail.
+
+Instead, use `read-current-multipart-form-data`:
+
+<pre><code class="language-scheme">(import schematra schematra.body-parser multipart-form-data)
+
+(use-middleware! (body-parser-middleware))
+
+(post "/upload"
+  (let* ((parts  (read-current-multipart-form-data))
+         (title  (alist-ref 'title parts))
+         (upload (alist-ref 'file parts)))
+    (when (multipart-file? upload)
+      (let ((filename (multipart-file-filename upload))
+            (port     (multipart-file-port upload)))
+        (save-upload! filename port)))
+    (string-append "Uploaded: " title)))
+</code></pre>
+
+The important detail is that `read-current-multipart-form-data` decodes from `(request-body-port (current-request-body))`, not from the original request port. So it works correctly after `body-parser-middleware` has already captured the body.
+
+If you're using `body-parser-middleware`, prefer `read-current-multipart-form-data` over `read-multipart-form-data` from the multipart-form-data egg. The latter reads the original request port directly, which has already been drained by the middleware.
 
 ### Testing Webhook Routes Without a Server
 

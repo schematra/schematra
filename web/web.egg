@@ -5,7 +5,7 @@
  (author "Rolando Abarca")
  (license "BSD")
  (category web)
- (dependencies schematra lowdown)
+ (dependencies schematra lowdown http-curl)
  (component-options
   (csc-options "-O3" "-d0"))
  (components (program web)))
