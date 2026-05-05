@@ -112,4 +112,6 @@
         (redirect "https://github.com/schematra/schematra"))
 
    (schematra-install)
-   (schematra-start)))
+   (schematra-start log-format: (if (equal? (get-environment-variable "SCHEMATRA_ENV") "production")
+                                    'json
+                                    'text))))

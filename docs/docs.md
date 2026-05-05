@@ -1129,6 +1129,8 @@ Start the web server.
 - `log-level`: Log level — `'debug`, `'info`, `'warn`, or `'error` (default: `'info`)
 - `log-format`: Log format — `'text` or `'json` (default: `'text`)
 
+When `log-format` is `'json`, access logs are emitted as structured logger entries with message `"request"` and fields such as `remote_addr`, `method`, `uri`, `response_code`, `referer`, and `user_agent`. Text logs keep the default Spiffy-style access log line.
+
 When `SCHEMATRA_ENV` is set to `"development"`, the server starts on a separate thread.
 
 ### Chiccup Functions

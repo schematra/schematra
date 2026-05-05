@@ -132,6 +132,22 @@
     (register-feature! 'schematra-dev)
     (register-feature! 'schematra-prod))
 
+(define (user-agent-product->string product)
+  (if (and (list? product) (= (length product) 3))
+      (let ((name (list-ref product 0))
+            (version (list-ref product 1))
+            (comment (list-ref product 2)))
+        (string-append (->string name)
+                       (if version (string-append "/" (->string version)) "")
+                       (if comment (string-append " (" (->string comment) ")") "")))
+      (->string product)))
+
+(define (user-agent->string user-agent)
+  (cond
+   ((not user-agent) "**Unknown**")
+   ((list? user-agent) (string-join (map user-agent-product->string user-agent) " "))
+   (else (->string user-agent))))
+
 ;; Default virtual host pattern for Schematra routing
 ;;
 ;; This parameter defines the regular expression pattern used to match virtual hosts
@@ -1109,16 +1125,30 @@
   ;; override Spiffy's access logging to use logger
   (handle-access-logging
    (lambda ()
-     (let ((h (request-headers (current-request))))
-       (i (format "~A \"~A ~A HTTP/~A.~A\" ~A \"~A\" \"~A\""
-                  (remote-address)
-                  (request-method (current-request))
-                  (uri->string (request-uri (current-request)))
-                  (request-major (current-request))
-                  (request-minor (current-request))
-                  (response-code (current-response))
-                  (uri->string (header-value 'referer h (uri-reference "-")))
-                  (or (header-value 'user-agent h) "**Unknown**"))))))
+     (let* ((request (current-request))
+            (response (current-response))
+            (h (request-headers request))
+            (referer (uri->string (header-value 'referer h (uri-reference "-"))))
+            (user-agent (user-agent->string (header-value 'user-agent h))))
+       (if (eq? (logger/format) 'json)
+           (i "request"
+              `((remote_addr . ,(remote-address))
+                (method . ,(->string (request-method request)))
+                (uri . ,(uri->string (request-uri request)))
+                (http_major . ,(request-major request))
+                (http_minor . ,(request-minor request))
+                (response_code . ,(response-code response))
+                (referer . ,referer)
+                (user_agent . ,user-agent)))
+           (i (format "~A \"~A ~A HTTP/~A.~A\" ~A \"~A\" \"~A\""
+                      (remote-address)
+                      (request-method request)
+                      (uri->string (request-uri request))
+                      (request-major request)
+                      (request-minor request)
+                      (response-code response)
+                      referer
+                      user-agent))))))
 
   (server-software `(("Schematra"
                       ,(conc version-major "." version-minor)
