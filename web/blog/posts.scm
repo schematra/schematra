@@ -3,6 +3,14 @@
 ;; The 'file' field should point to a markdown file in the web/blog/ directory
 
 (
+ ((slug . "whats-new-in-schematra-0-6-8")
+  (title . "What's New in Schematra 0.6.8")
+  (date . "2026-05-08")
+  (author . "Rolando Abarca")
+  (excerpt . "Structured JSON access logs, cleaner production observability, and a recap of the 0.6.x fixes that landed after the previous release post.")
+  (image . "https://s3-us-west-1.amazonaws.com/assets.schematra.com/public/images/schematra-og.png")
+  (tags . ("release" "logging" "observability"))
+  (file . "whats-new-in-schematra-0-6-8.md"))
  ((slug . "whats-new-in-schematra-0-6")
   (title . "What's New in Schematra 0.6")
   (date . "2026-04-29")
