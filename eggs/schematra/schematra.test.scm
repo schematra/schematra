@@ -38,6 +38,7 @@
    test-route-body
    test-route-headers
    test-route-full
+   test-route-output
    test-route-cookies
    response-cookie-value
    test-route-redirect-location
@@ -266,6 +267,17 @@
                     (if (>= (length tuple) 3) (caddr tuple) '())
                     cookies))
             #f)))))
+
+;; Test a route and return the raw bytes written to the response port.
+;; This is useful for long-lived responses, where the router intentionally
+;; skips normal tuple finalization after the handler takes over the connection.
+(define (test-route-output app method path #!key headers body cookies)
+  (with-schematra-app app
+    ((current-request (make-mock-request method path headers: headers body: body cookies: cookies))
+     (current-response (make-mock-response)))
+    (lambda ()
+      (schematra-route-request (current-request))
+      (get-output-string (response-port (current-response))))))
 
 ;; Test a route and return only the cookies
 ;;

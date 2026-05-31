@@ -4,6 +4,7 @@
 (import scheme)
 (import
  chicken.base
+ chicken.condition
  chicken.io
  chicken.string
  chicken.format
@@ -12,9 +13,11 @@
  (rename intarweb (headers intarweb:headers))
  uri-common
  srfi-69
+ srfi-13
  medea
  schematra
  schematra.test
+ schematra.ws
  schematra.body-parser
  schematra-session
  test)
@@ -245,6 +248,127 @@
                            headers: `((content-type #(multipart/form-data ((boundary . "abc"))))
                                       (content-length ,(string-length multipart-body)))
                            body: multipart-body))))
+
+;; ============================================================
+;; 12. Route Failures
+;; ============================================================
+(test-group "Route failures"
+  (let ((app (with-test-app a
+               (get "/fail"
+                    (error 'test-route-failure "boom")))))
+    (test "Exception route returns 500" 'internal-server-error
+          (test-route-status app 'GET "/fail"))))
+
+;; ============================================================
+;; 13. Long Connections / SSE
+;; ============================================================
+(test-group "Long connections / SSE"
+  (let ((app (with-test-app a
+               (sse "/events"
+                     (lambda ()
+                       (write-sse-data "hello" event: "greeting")
+                       "ignored")))))
+    (let ((output (test-route-output app 'GET "/events")))
+      (test "SSE writes event-stream header" #t
+            (and (string-contains output "text/event-stream") #t))
+      (test "SSE writes event name" #t
+            (and (string-contains output "event: greeting") #t))
+      (test "SSE writes event data" #t
+            (and (string-contains output "data: hello") #t))
+      (test "SSE does not append normal response body" #f
+            (and (string-contains output "ignored") #t)))))
+
+;; ============================================================
+;; 14. WebSocket
+;; ============================================================
+(test-group "WebSocket"
+  (let ((headers '((upgrade websocket)
+                   (connection "Upgrade")
+                   (sec-websocket-version "13")
+                   (sec-websocket-key "dGhlIHNhbXBsZSBub25jZQ==")))
+        (browser-headers '((upgrade ("websocket" . #f))
+                           (connection upgrade)
+                           (sec-websocket-version "13")
+                           (sec-websocket-key "dGhlIHNhbXBsZSBub25jZQ==")))
+        (app (with-test-app a
+               (websocket "/ws"
+                 (on-open
+                  (send-text "hello"))
+                 (on-text message
+                  (send-text message))
+                 (on-close code reason
+                  (void))))))
+    (let ((output (test-route-output app 'GET "/ws" headers: headers)))
+      (test "WebSocket sends 101" #t
+            (and (string-contains output "101 Switching Protocols") #t))
+      (test "WebSocket sends upgrade header" #t
+            (and (string-contains output "Upgrade: websocket") #t))
+      (test "WebSocket sends RFC accept key" #t
+            (and (string-contains output "Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=") #t)))
+    (let ((output (test-route-output app 'GET "/ws" headers: browser-headers)))
+      (test "WebSocket accepts parsed browser upgrade header" #t
+            (and (string-contains output "101 Switching Protocols") #t)))
+    (let ((output (test-route-output app 'GET "/ws"
+                                     headers: '((upgrade websocket)
+                                                (connection "Upgrade")
+                                                (sec-websocket-version "13")
+                                                (sec-websocket-key "bad")))))
+      (test "WebSocket rejects invalid key" #t
+            (and (string-contains output "400 Bad Request") #t))))
+
+  ;; on-error clause runs before the connection is closed when a handler raises.
+  (let* ((seen (make-parameter '()))
+         (app (with-test-app a
+                (websocket "/ws-error"
+                  (on-open
+                   (error 'ws-test "boom"))
+                  (on-text message
+                   (void))
+                  (on-close code reason
+                   (void))
+                  (on-error exn
+                   (seen (cons exn (seen))))))))
+    (parameterize ((seen '()))
+      (let ((output (test-route-output app 'GET "/ws-error"
+                                       headers: '((upgrade websocket)
+                                                  (connection "Upgrade")
+                                                  (sec-websocket-version "13")
+                                                  (sec-websocket-key "dGhlIHNhbXBsZSBub25jZQ==")))))
+        (test "on-error clause was called" 1 (length (seen)))
+        (test "on-error received the original exception" #t
+              (condition? (car (seen))))
+        ;; A 1011 close frame is: 0x88 (FIN+close opcode), 0x17 length
+        ;; (23 = 2-byte code + 21-byte reason), then payload starting
+        ;; with 0x03 0xF3 (1011 big-endian) followed by the reason string.
+        (test "Server emits 1011 close frame after handler failure" #t
+              (and (string-contains output
+                                    (string (integer->char #x88)
+                                            (integer->char #x17)
+                                            (integer->char #x03)
+                                            (integer->char #xF3)
+                                            #\i #\n #\t #\e #\r #\n #\a #\l))
+                   #t)))))
+
+  ;; close-websocket! from inside on-open still triggers on-close cleanup.
+  (let* ((close-events (make-parameter '()))
+         (app (with-test-app a
+                (websocket "/ws-self-close"
+                  (on-open
+                   (close-websocket! 1000 "bye"))
+                  (on-text message
+                   (void))
+                  (on-close code reason
+                   (close-events (cons (cons code reason) (close-events))))))))
+    (parameterize ((close-events '()))
+      (test-route-output app 'GET "/ws-self-close"
+                         headers: '((upgrade websocket)
+                                    (connection "Upgrade")
+                                    (sec-websocket-version "13")
+                                    (sec-websocket-key "dGhlIHNhbXBsZSBub25jZQ==")))
+      (test "on-close runs after close-websocket! from handler" 1
+            (length (close-events)))
+      (test "on-close received normal close code" 1000
+            (car (car (close-events)))))))
 
 ;; ============================================================
 ;; Results

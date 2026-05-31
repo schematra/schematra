@@ -8,12 +8,14 @@ Schematra is a modern web framework for CHICKEN Scheme inspired by Sinatra. It's
 
 ### Architecture Components
 
-- **Core Framework** (`eggs/schematra/`): Main web framework with routing, middleware, request handling
+- **Core Framework** (`eggs/schematra/schematra.scm`): Routing, middleware, request handling, SSE
+- **WebSockets** (`eggs/schematra/schematra.ws.scm`): `websocket` macro, frame parser/writer, `send-text`/`send-binary`/`close-websocket!`
+- **Framework Utilities** (`eggs/schematra/schematra.utils.scm`): hex/byte helpers, HTTP header parsing, binary I/O (internal-ish helpers shared across modules)
 - **HTML Generation** (`eggs/chiccup/`): S-expression-based HTML templating with CSS selector syntax
 - **Session Management** (`eggs/schematra-session/`): Cookie-based session middleware
 - **CSRF Protection** (`eggs/schematra-csrf/`): Cross-site request forgery protection
 - **OAuth2 Support** (`eggs/oauthtoothy/`): OAuth2 authentication integration
-- **Body Parser** (`eggs/schematra/schematra-body-parser.scm`): Request body parsing middleware
+- **Body Parser** (`eggs/schematra/schematra.body-parser.scm`): Request body parsing middleware
 
 ## Development Commands
 

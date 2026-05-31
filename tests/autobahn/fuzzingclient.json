@@ -1,0 +1,11 @@
+{
+  "outdir": "/reports/clients",
+  "servers": [
+    {
+      "agent": "schematra",
+      "url": "ws://host.docker.internal:9001/"
+    }
+  ],
+  "cases": ["*"],
+  "exclude-agent-cases": {}
+}

@@ -6,18 +6,27 @@
  (license "BSD")
  (category web)
  (dependencies spiffy
-	       base64
-	       nrepl
+               base64
+               simple-sha1
+               nrepl
                srfi-1
                srfi-13
-	       srfi-18
+               srfi-18
                srfi-69
-	       chiccup
-	       medea
-	       multipart-form-data
-	       logger)
+               chiccup
+               medea
+               multipart-form-data
+               logger)
  (component-options
   (csc-options "-O3" "-d0"))
- (components (extension schematra)
-	     (extension schematra.body-parser)
-	     (extension schematra.test)))
+ (components (extension schematra.utils)
+	     (extension schematra
+			(component-dependencies schematra.utils))
+	     (extension schematra.ws.internal
+			(component-dependencies schematra schematra.utils))
+	     (extension schematra.ws
+			(component-dependencies schematra.ws.internal))
+	     (extension schematra.body-parser
+			(component-dependencies schematra))
+	     (extension schematra.test
+			(component-dependencies schematra))))

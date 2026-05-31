@@ -20,6 +20,7 @@ A modern web framework for [CHICKEN Scheme](https://call-cc.org/) that lets you 
 - Simple route definition with `get`, `post`, etc. functions
 - URL parameter extraction and query parameter handling
 - Middleware system with built-in session management
+- Real-time support: Server-Sent Events and WebSockets, both first-class
 - Development mode with REPL integration
 - Chiccup: S-expressions for HTML with syntactic sugar - your HTML structure mirrors your data structure
 - Built on the solid [Spiffy](http://wiki.call-cc.org/eggref/5/spiffy) web server
@@ -87,17 +88,17 @@ Visit the **[full documentation](docs/docs.md)**.
 - ✅ Session management
 - ✅ Chiccup HTML generation (S-expressions with syntactic sugar)
 - ✅ Server-Sent Events (SSE)
+- ✅ WebSockets (`schematra.ws`)
 - ✅ OAuth2 authentication
 - ✅ Development mode with REPL
 - ✅ Static file serving
+- ✅ Database integration helpers — via the [Schematra starter kit](https://forgejo.rolando.cl/cpm/schematra-starter-kit)
+- ✅ Background job system — also in the [starter kit](https://forgejo.rolando.cl/cpm/schematra-starter-kit). Early-stage but functional
 
 ### What's Coming (not in priority order)
 
-- [ ] Enhanced error handling
-- [ ] Database integration helpers
-- [ ] WebSocket support
-- [ ] Background job system
-- [ ] Production deployment guides
+- [ ] Enhanced error handling. This is already improved, but we can do better.
+- [ ] (Better) production deployment guides
 
 ## Contributing
 

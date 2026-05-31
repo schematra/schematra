@@ -64,6 +64,14 @@
  schematra-route-request
  schematra-install
  schematra-start
+ running-interactively?
+ ;; long-connection primitives (exposed for schematra.ws and similar
+ ;; extension modules that build long-lived protocols on top of the router)
+ current-long-connection
+ start-long-connection!
+ long-connection-input-port
+ long-connection-output-port
+ long-connection-response-set!
  ) ; end export list
 
 (import scheme)
@@ -75,13 +83,13 @@
   chicken.io
   chicken.port
   chicken.condition
- chicken.string
+  chicken.string
  chicken.file
  chicken.pathname
  chicken.file.posix
  chicken.time.posix
- chicken.format
- medea ;; for send-json
+  chicken.format
+  medea ;; for send-json
  sendfile
  uri-common
  spiffy
@@ -131,6 +139,20 @@
 (if (equal? *schematra-env* "development")
     (register-feature! 'schematra-dev)
     (register-feature! 'schematra-prod))
+
+;; True when we're sitting at a csi REPL — i.e. the interpreter is loaded
+;; (`(feature? 'csi)` is #f for compiled binaries) AND argv has no script
+;; flag. `csi -s script.scm`, `csi -ss …`, `csi -script …`, `csi -b …`
+;; and `csi -batch …` all run scripts and then exit; in those modes we
+;; want `schematra-start` to block like a compiled binary so the script
+;; doesn't fall off the end before the server accepts connections.
+;; A real REPL has none of those flags, and we spawn the server in a
+;; background thread so the prompt stays responsive.
+(define (running-interactively?)
+  (and (feature? 'csi)
+       (not (any (lambda (a)
+                  (member a '("-s" "-ss" "-script" "-b" "-batch")))
+                 (argv)))))
 
 (define (user-agent-product->string product)
   (if (and (list? product) (= (length product) 3))
@@ -447,13 +469,18 @@
 ;; ```
 (define (sse path handler)
   (get path
+       (start-long-connection! 'sse)
        (current-response
         (update-response (current-response)
                          headers:
-                         (intarweb:headers `((content-type text/event-stream)
-                                             (cache-control no-cache)
-                                             (connection keep-alive)
-                                             (x-accel-buffering no)))))
+                         (intarweb:headers
+                         (append `((content-type text/event-stream)
+                                    (cache-control no-cache)
+                                    (connection keep-alive)
+                                    (x-accel-buffering no))
+                                  (cookies->alist (response-cookies)))
+                          (response-headers (current-response)))))
+       (long-connection-response-set! (current-long-connection) (current-response))
        (write-logged-response)
        (handler)))
 
@@ -523,7 +550,7 @@
                    "data: " data "\n\n")))
     ;; this code will throw an i/o exception if the client
     ;; disconnects
-    (display msg (response-port (current-response)))
+    (display msg (long-connection-output-port (current-long-connection)))
     (finish-response-body (current-response))))
 
 ;; Immediately halt request processing and send an HTTP response
@@ -916,11 +943,9 @@
 
 (handle-exception
  (lambda (exn chain)
-   (let ((is-sse (and (current-response)
-                      (header-value 'x-sse-handler (response-headers (current-response)))))
-         (thread-id (thread-name (current-thread))))
-     (if is-sse
-         (e (format "SSE connection closed: ~A" exn))
+   (let ((conn (current-long-connection)))
+     (if conn
+         (log-long-connection-exception conn exn chain)
          ;; only send status for other reqs
          (begin
            (e (build-error-message exn chain #t))
@@ -933,6 +958,36 @@
 (define current-params (make-parameter '()))
 
 (define current-raw-body (make-parameter #f))
+
+(define-record long-connection
+  kind
+  input-port
+  output-port
+  request
+  response
+  metadata)
+
+(define current-long-connection (make-parameter #f))
+
+(define (start-long-connection! kind #!key (metadata '()))
+  (let* ((req (current-request))
+         (res (current-response))
+         (conn (make-long-connection kind
+                                      (request-port req)
+                                      (response-port res)
+                                      req
+                                      res
+                                      metadata)))
+    (current-long-connection conn)
+    conn))
+
+(define (long-connection-disconnect-exception? exn)
+  ((condition-predicate 'i/o) exn))
+
+(define (log-long-connection-exception conn exn chain)
+  (if (long-connection-disconnect-exception? exn)
+      (i (format "~A connection closed: ~A" (long-connection-kind conn) exn))
+      (e (build-error-message exn chain #t))))
 
 ;; from spiffy.scm
 (define (call-with-input-file* file proc)
@@ -957,20 +1012,21 @@
 (define (schematra-route-request request)
   (let* ((app (current-app))
          (method (request-method request))
-	 (resource-tree (or (alist-ref method (schematra-app-resources app)) '()))
-	 (middleware-stack (schematra-app-middleware-stack app))
-	 (headers (request-headers request))
+         (resource-tree (or (alist-ref method (schematra-app-resources app)) '()))
+         (middleware-stack (schematra-app-middleware-stack app))
+         (headers (request-headers request))
          (raw-cookies (header-values 'cookie headers))
          (uri (request-uri request))
          (normalized-path (normalize-path (uri-path uri)))
          (resource (and resource-tree (find-resource normalized-path resource-tree))))
     (if resource
         (parameterize ((request-cookies (alist->hash-table raw-cookies))
-                        (response-cookies (make-hash-table))
-                        (current-body #f)
-                        (current-request-body #f)
-                        (current-raw-body #f)
-                        (current-params '()))
+                       (response-cookies (make-hash-table))
+                       (current-body #f)
+                       (current-request-body #f)
+                       (current-raw-body #f)
+                       (current-long-connection #f)
+                       (current-params '()))
           (let* ((handler (car resource))
                  (route-params (cadr resource)))
             (current-params (append route-params (uri-query uri)))
@@ -989,42 +1045,51 @@
                              (escape #f))
                            (lambda ()
                              (let* ((response-tuple (apply-middleware-stack middleware-stack handler))
-                                    (orig-status (if (list? response-tuple) (car response-tuple) #f))
-                                    (old-headers (response-headers (current-response)))
-                                    (new-headers (intarweb:headers (cookies->alist (response-cookies))
-                                                                    old-headers)))
-                               (current-response (update-response (current-response)
-                                                                  headers: new-headers))
-                               (current-response (update-response-with-tuple! (current-response) response-tuple))
-                               (if (eq? orig-status 'static-file)
-                                   (condition-case
-                                     (call-with-input-file* (current-body)
-                                       (lambda (f)
-                                         (write-logged-response)
-                                         (sendfile f (response-port (current-response)))
-                                         (finish-response-body (current-response))))
-                                     [(exn i/o file) (send-status 'forbidden)])
-                                   (send-response body: (current-body)))
-                               (cond
-                                 [(string? response-tuple) `(ok ,response-tuple ())]
-                                 [(is-chiccup-response? response-tuple) `(ok ,response-tuple ())]
-                                 [(is-response? response-tuple) response-tuple]
-                                 [else `(error ,response-tuple ())])))))))) ;; let*/lambda/weh/lambda/call-cc/result-pair/result-bindings
+                                    (orig-status (if (list? response-tuple) (car response-tuple) #f)))
+                               (if (current-long-connection)
+                                   `(long-connection ,(long-connection-kind (current-long-connection)) ())
+                                   (let* ((old-headers (response-headers (current-response)))
+                                          (new-headers (intarweb:headers (cookies->alist (response-cookies))
+                                                                         old-headers)))
+                                     (current-response (update-response (current-response)
+                                                                        headers: new-headers))
+                                     (current-response (update-response-with-tuple! (current-response) response-tuple))
+                                     (if (eq? orig-status 'static-file)
+                                         (condition-case
+                                           (call-with-input-file* (current-body)
+                                             (lambda (f)
+                                               (write-logged-response)
+                                               (sendfile f (response-port (current-response)))
+                                               (finish-response-body (current-response))))
+                                           [(exn i/o file) (send-status 'forbidden)])
+                                         (send-response body: (current-body)))
+                                     (cond
+                                       [(string? response-tuple) `(ok ,response-tuple ())]
+                                       [(is-chiccup-response? response-tuple) `(ok ,response-tuple ())]
+                                       [(is-response? response-tuple) response-tuple]
+                                       [else `(error ,response-tuple ())]))))))))))
                 (if (not caught-exn)
                     result
-                    (let ((halt-status (get-condition-property caught-exn 'halt-condition 'status #f)))
-                      (if halt-status
-                          (let* ((body         (or (get-condition-property caught-exn 'halt-condition 'body) ""))
-                                 (halt-headers (get-condition-property caught-exn 'halt-condition 'headers))
-                                 (new-headers  (append (or halt-headers '()) (cookies->alist (response-cookies))))
-                                 (halt-tuple   (list halt-status body new-headers)))
-                            (current-response (update-response-with-tuple! (current-response) halt-tuple))
-                            (send-response status: halt-status body: body)
-                            halt-tuple)
-                          (begin
-                            (e (build-error-message caught-exn caught-chain #t))
-                            (send-status 'internal-server-error (build-error-page caught-exn))
-                            `(internal-server-error "" ()))))))))) ;; if/let/if/let-result/let-caught
+                    (let ((conn (current-long-connection))
+                          (halt-status (get-condition-property caught-exn 'halt-condition 'status #f)))
+                      (cond
+                       (conn
+                        (log-long-connection-exception conn caught-exn caught-chain)
+                        (if (long-connection-disconnect-exception? caught-exn)
+                            `(long-connection-closed "" ())
+                            `(long-connection-error "" ())))
+                       (halt-status
+                        (let* ((body (or (get-condition-property caught-exn 'halt-condition 'body) ""))
+                               (halt-headers (get-condition-property caught-exn 'halt-condition 'headers))
+                               (new-headers (append (or halt-headers '()) (cookies->alist (response-cookies))))
+                               (halt-tuple (list halt-status body new-headers)))
+                          (current-response (update-response-with-tuple! (current-response) halt-tuple))
+                          (send-response status: halt-status body: body)
+                          halt-tuple))
+                       (else
+                        (e (build-error-message caught-exn caught-chain #t))
+                        (send-status 'internal-server-error (build-error-page caught-exn))
+                        `(internal-server-error "" ())))))))))
         #f)))
 
 ;; Install the Schematra router as a virtual host handler
@@ -1083,38 +1148,31 @@
 ;;   - `repl?`: boolean - Enabled NREPL, only if dev mode is true (default: #f)
 ;;   - `repl-port`: integer - REPL port for development mode (default: 1234)
 ;;
-;; ### Development Mode
-;; When `SCHEMATRA_ENV` is "development", the server runs in a
-;; separate thread and starts an nREPL server on the specified
-;; repl-port for interactive development if `repl?` is also #t. This
-;; allows you to connect with a REPL client and modify routes/handlers
-;; while the server is running.
+;; ### Foreground vs background
+;; By default, `schematra-start` blocks the current thread. The one
+;; exception: when called from an interactive csi REPL (no `-s`/`-ss`/
+;; `-script`/`-b`/`-batch` flag and the interpreter is loaded), it
+;; spawns the server in a background thread so the prompt stays
+;; responsive. Compiled binaries and `csi -s script.scm` always block.
 ;;
-;; **IMPORTANT:** Development mode requires the 'nrepl' egg to be installed:
-;; ```bash
-;; $ chicken-install nrepl
-;; ```
-;;
-;; Development mode also enables request logging to stdout.
-;;
-;; ### Production Mode
-;; When `SCHEMATRA_ENV` is not "development" (default), starts the
-;; server normally in the current thread without REPL access.
+;; Pass `background: #t` to force background mode (e.g. for tests) or
+;; `background: #f` to force foreground mode.
 ;;
 ;; ### Examples
 ;; ```scheme
-;; ;; Production mode
+;; ;; Production binary or csi -s script — blocks until shutdown.
 ;; (schematra-start port: 3000)
 ;;
-;; ;; Development mode with custom port
-;; (set-enviroment-variable! "SCHEMATRA_ENV" "development")
-;; (import schematra)
-;; ...
+;; ;; From a csi REPL — auto-detected; runs in a background thread.
 ;; (schematra-start port: 3000)
+;;
+;; ;; Force background regardless of context.
+;; (schematra-start port: 3000 background: #t)
 ;; ```
 (define (schematra-start #!key
                          (port 8080)
                          (bind-address #f)
+                         (background (running-interactively?))
                          (log-output (current-output-port))
                          (log-level 'info)
                          (log-format 'text))
@@ -1157,11 +1215,8 @@
   (server-port port)
   (server-bind-address bind-address)
 
-  (if (equal? *schematra-env* "development")
-      (begin
-        (thread-start!
-         (lambda ()
-           (start-server))))
+  (if background
+      (thread-start! (lambda () (start-server)))
       (start-server)))
 
 ) ;; end of module

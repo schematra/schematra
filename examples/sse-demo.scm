@@ -44,9 +44,10 @@
 ;; By default spiffy allows up to 1024 simultaneous connections. You're using one on each SSE route.
 ;; To change the amount of max connections you can use the parameter `max-connections` (see: https://wiki.call-cc.org/eggref/5/spiffy#configuration-parameters)
 (with-schematra-app (schematra/make-app)
- ;; used in the post
- (use-middleware! (body-parser-middleware))
- (get "/"
+ (lambda ()
+  ;; used in the post
+  (use-middleware! (body-parser-middleware))
+  (get "/"
       (ccup->html
        `[html
          [head
@@ -66,12 +67,14 @@
                  (hx-swap "beforeend")))]]
             ,(send-form)]]]]))
 
- (post "/send"
-       (let ((msg (alist-ref 'message (current-params))))
-         (when msg (broadcast-message! msg))
-         ""))
+  (post "/send"
+        (let ((msg (alist-ref 'message (current-params))))
+          (when (and msg (string=? msg "/fail"))
+            (error 'sse-demo "Intentional message failure"))
+          (when msg (broadcast-message! msg))
+          ""))
 
- (sse "/chatroom"
+  (sse "/chatroom"
       (lambda ()
         (let ((last-seen-id 0))
           (let loop ()
@@ -94,5 +97,5 @@
         ;; in theory we should never reach this point
         "done"))
 
- (schematra-install)
- (schematra-start development?: #f))
+  (schematra-install)
+  (schematra-start)))

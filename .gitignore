@@ -7,8 +7,13 @@
 *.build.sh
 *.install.sh
 schematra-web
+examples/websocket-echo
 docs/*.wiki
 web/web
+.claude/
 
 # release by-products
 *.tar.gz
+
+# autobahn conformance reports (regenerated on every run)
+tests/autobahn/reports/
