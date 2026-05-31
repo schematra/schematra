@@ -3,6 +3,14 @@
 ;; The 'file' field should point to a markdown file in the web/blog/ directory
 
 (
+ ((slug . "whats-new-in-schematra-0-7")
+  (title . "What's New in Schematra 0.7")
+  (date . "2026-05-30")
+  (author . "Rolando Abarca")
+  (excerpt . "WebSocket support lands in Schematra. Real-time, bidirectional routes alongside your HTTP handlers, plus a modular reorganization that splits framework helpers into focused submodules.")
+  (image . "https://s3-us-west-1.amazonaws.com/assets.schematra.com/public/images/schematra-og.png")
+  (tags . ("release" "websockets" "real-time"))
+  (file . "whats-new-in-schematra-0-7.md"))
  ((slug . "whats-new-in-schematra-0-6-8")
   (title . "What's New in Schematra 0.6.8")
   (date . "2026-05-08")
