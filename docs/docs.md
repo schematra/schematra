@@ -9,8 +9,10 @@ A modern web framework for Scheme that lets you write web apps the way you think
 - [Getting Started](#getting-started)
 - [Core Concepts](#core-concepts)
 - [Chiccup HTML Generation](#chiccup-html-generation)
+- [Building UI Components with Chiccup](chiccup-components.md) — deep dive on composing modular, functional components
 - [Middleware System](#middleware-system)
 - [OAuth2 Authentication (Oauthtoothy)](#oauth2-authentication-oauthtoothy)
+- [WebSockets](#websockets)
 - [API Reference](#api-reference)
 - [Advanced Topics](#advanced-topics)
 - [Testing](#testing)
@@ -28,6 +30,7 @@ Schematra is a lightweight, expressive web framework for CHICKEN Scheme inspired
 - **Flexible routing** - Sinatra-style route definitions with URL parameters
 - **Built-in sessions** - Cookie-based session management out of the box
 - **Middleware support** - Extensible request/response processing pipeline
+- **Real-time** - Server-Sent Events and WebSockets are first-class, with the same route syntax you already use
 - **Static file serving** - Serve CSS, JavaScript, and assets effortlessly
 - **Compile to a binary** - Because Schematra runs on CHICKEN, you can create a static or dynamically linked binary that makes distribution & release a breeze.
 
@@ -129,6 +132,15 @@ Schematra is perfect for:
 (static "/assets" "./public")
 ```
 
+### WebSockets
+```scheme
+(import schematra.ws)
+
+(websocket "/echo"
+  (on-text message
+    (send-text message)))
+```
+
 ## Getting Started
 
 ### System Requirements
@@ -157,6 +169,14 @@ Schematra is perfect for:
    ```
 
 ### Import Notes
+
+**WebSocket support**: WebSocket primitives (the `websocket` macro, `send-text`, `send-binary`, `close-websocket!`, `current-websocket`) live in the `schematra.ws` module, not the core `schematra` module. If you want to write WebSocket routes, add the import:
+
+```scheme
+(import schematra schematra.ws)
+```
+
+If you don't use WebSockets, you don't pay for the extra dependencies (`base64`, `simple-sha1`, etc.).
 
 **SRFI-1 Compatibility**: If you're using SRFI-1 and need its `delete` function alongside Schematra's HTTP DELETE verb, rename one on import:
 
@@ -368,6 +388,10 @@ CSS classes from selectors and attributes are automatically merged:
   `[ul.list-disc.ml-4
     ,@(map (lambda (item) `[li ,item]) items)])
 ```
+
+### Building Modular Components
+
+The examples above cover the syntax, but Chiccup really shines when you treat components as plain Scheme functions and compose them like any other code. For patterns on parameterizing components, sharing layouts, rendering lists, building a small design system, and organizing components across a growing app, see the dedicated guide: **[Building UI Components with Chiccup](chiccup-components.md)**.
 
 ### Inspiration
 
@@ -948,6 +972,148 @@ Oauthtoothy automatically handles common OAuth2 errors:
 - **Callback URL Validation**: Ensure callback URLs are registered with providers
 - **Session Security**: Use strong secret keys for session middleware
 
+## WebSockets
+
+WebSockets give you a bidirectional, message-oriented channel between the server and the browser. Schematra implements RFC 6455 in the `schematra.ws` module, and the route syntax is the same family as `get`/`post`/`sse` — you declare the URL, then handle events as they happen.
+
+```scheme
+(import schematra schematra.ws)
+
+(websocket "/echo"
+  (on-open
+   (send-text "welcome"))
+  (on-text message
+   (send-text (string-append "you said: " message)))
+  (on-close code reason
+   (void)))
+```
+
+That's everything: the framework validates the upgrade request, sends the handshake, decodes each incoming frame, and dispatches to the matching clause. Your code only sees decoded messages.
+
+### Event Clauses
+
+A `websocket` route can declare any of the following clauses. All are optional except `on-text`.
+
+- `(on-open body ...)` — runs once when the handshake completes.
+- `(on-text message body ...)` — runs for each text frame. `message` is bound to the decoded payload.
+- `(on-binary bytes body ...)` — runs for each binary frame. `bytes` is the raw byte string.
+- `(on-close code reason body ...)` — runs when the connection closes, regardless of who initiated it. `code` is the WebSocket close code (1000 for normal, 1006 for an abrupt disconnect, etc.) and `reason` is the human-readable string.
+- `(on-error exn body ...)` — runs if a handler raises an exception, before the connection is closed. Use it for logging, metrics, or notifying other clients.
+
+The macro accepts a few shapes — you can omit `on-binary`, `on-error`, or both, and there's a single-clause form for echo-style routes:
+
+```scheme
+(websocket "/echo"
+  (on-text message (send-text message)))
+```
+
+### Sending Messages
+
+Inside a handler, `send-text` and `send-binary` write a single frame to the current connection:
+
+```scheme
+(send-text "hello")
+(send-binary (read-some-bytes))
+```
+
+Both implicitly target `(current-websocket)`, the connection bound by the current handler. Sends are mutex-guarded per connection, so it's safe to call them from multiple threads as long as you parameterize `current-websocket` to the connection you want to write to.
+
+### The Connection as a First-Class Value
+
+`current-websocket` is a parameter; its value is a `websocket-connection` record. You can store it, share it across threads, and reach for it later — that's how broadcasting works.
+
+```scheme
+(define clients-mutex (make-mutex))
+(define clients '())
+
+(define (with-clients proc)
+  (mutex-lock! clients-mutex)
+  (dynamic-wind void proc (lambda () (mutex-unlock! clients-mutex))))
+
+(define (broadcast! message)
+  (let ((snapshot (with-clients (lambda () clients))))
+    (for-each
+     (lambda (ws)
+       (parameterize ((current-websocket ws))
+         (condition-case (send-text message)
+           (exn () (set! clients (delete ws clients))))))
+     snapshot)))
+
+(websocket "/chat"
+  (on-open
+   (with-clients (lambda () (set! clients (cons (current-websocket) clients))))
+   (broadcast! "a new client joined"))
+  (on-text message
+   (broadcast! message))
+  (on-close code reason
+   (let ((me (current-websocket)))
+     (with-clients (lambda () (set! clients (delete me clients))))
+     (broadcast! "a client left"))))
+```
+
+Always snapshot the registry under the lock before iterating, then release the lock — `send-text` can block on slow clients, and you don't want to hold the lock during I/O.
+
+### Closing Connections
+
+`close-websocket!` initiates a graceful close. From inside a handler, calling it with no arguments closes the current connection with a normal close code (1000):
+
+```scheme
+(on-text message
+  (when (string=? message "/bye")
+    (close-websocket!)))
+```
+
+From outside the handler thread, pass the connection explicitly to force-close a specific client:
+
+```scheme
+;; Kick a connection that violated some app-level rule.
+(close-websocket! 1008 "policy violation" some-other-ws)
+```
+
+`close-websocket!` sends the close frame to the peer (best effort) and tears down the underlying input port so the connection's read loop unblocks immediately — even when called from another thread. The connection's `on-close` clause still runs for cleanup.
+
+### Error Handling
+
+If a handler raises an exception, Schematra runs your `on-error` clause first so you can react to the failure, then sends a `1011` close frame, runs `on-close`, and lets the framework log the original exception. The connection is always closed cleanly:
+
+```scheme
+(websocket "/risky"
+  (on-text message
+   (process-message message))
+  (on-close code reason
+   (release-resources!))
+  (on-error exn
+   (log-error "websocket handler failed" exn)))
+```
+
+You don't need to wrap `send-text` in `condition-case` for sane usage — the framework's outer exception handler catches anything that escapes a clause. Wrap manually only when you want a different recovery (for example, when broadcasting and you want to skip dead clients without aborting the loop).
+
+### Configuration
+
+The `websocket-max-frame-size` parameter caps the size of an incoming frame. The default is 1 MB. If a peer sends a larger frame, the framework closes the connection with a `1009` (message too big) code.
+
+```scheme
+(websocket-max-frame-size (* 4 1024 1024)) ;; 4 MB
+```
+
+Frames larger than the limit are rejected before the payload is read, so this is also a defense against malicious clients trying to allocate huge buffers.
+
+### RFC 6455 Conformance
+
+Schematra's WebSocket implementation is run against the [Autobahn TestSuite](https://github.com/crossbario/autobahn-testsuite) — the standard RFC 6455 conformance suite — on every release. Strict pass: **296/301 = 98.3%** across all implemented sections (framing, fragmentation, control frames, UTF-8, close handling, limits). See `tests/autobahn/README.md` for how to run it locally.
+
+Two of the five non-strict cases (§6.4.3, §6.4.4) test UTF-8 fail-fast when an invalid byte sequence is split across TCP writes inside a single frame; our parser reads the whole frame payload before running the UTF-8 DFA, so the close 1007 lands one buffer late by Autobahn's measure. The close handshake itself is RFC-correct (Autobahn reports `behaviorClose` as OK for both), and the worst-case buffering is capped by `websocket-max-frame-size` — no different from a well-formed frame at the same size. The remaining three are RFC-undefined behavior that Autobahn always marks INFORMATIONAL: §7.1.6 sends a large message followed immediately by a close, where the RFC doesn't pick a winner between finishing the write and processing the close first; §7.13.1 and §7.13.2 send close frames with out-of-range codes (5000, 65535), which the RFC doesn't define server behavior for. permessage-deflate (§12, §13) is not implemented and is excluded from the run.
+
+### A Working Example
+
+A complete multi-client chat lives in `examples/websocket-demo.scm`. It demonstrates broadcasting, naming connections, force-close from outside the handler, intentional handler failures (the `/fail` command), and the `on-error` clause. Run it with:
+
+```bash
+csi -s examples/websocket-demo.scm
+```
+
+then open `http://localhost:8080` in two browser tabs to watch messages relay between them.
+
 ## API Reference
 
 ### Core Functions
@@ -1132,6 +1298,48 @@ Start the web server.
 When `log-format` is `'json`, access logs are emitted as structured logger entries with message `"request"` and fields such as `remote_addr`, `method`, `uri`, `response_code`, `referer`, and `user_agent`. Text logs keep the default Spiffy-style access log line.
 
 When `SCHEMATRA_ENV` is set to `"development"`, the server starts on a separate thread.
+
+### WebSocket Functions
+
+All of these live in the `schematra.ws` module:
+
+```scheme
+(import schematra.ws)
+```
+
+#### `(websocket path clause ...)`
+Macro. Register a WebSocket route at `path`. Each clause matches an event:
+
+- `(on-open body ...)`
+- `(on-text message body ...)`
+- `(on-binary bytes body ...)`
+- `(on-close code reason body ...)`
+- `(on-error exn body ...)`
+
+`on-text` is required; the others are optional. The macro expands to a `get` route that performs the handshake before dispatching events to the matching clause.
+
+#### `(websocket* path on-open on-text on-binary on-close on-error)`
+Procedural form behind the `websocket` macro. All five handler thunks are required. Use this if you want to build a `websocket` route programmatically.
+
+#### `(send-text message)`
+Send a UTF-8 text frame on `(current-websocket)`. `message` is a string. Raises an error if there is no current WebSocket connection.
+
+#### `(send-binary bytes)`
+Send a binary frame on `(current-websocket)`. `bytes` is a byte string.
+
+#### `(close-websocket! [code [reason [ws]]])`
+Close a WebSocket connection.
+- `code`: integer close code (default `1000` for normal closure).
+- `reason`: human-readable string (default `""`).
+- `ws`: the connection to close (default `(current-websocket)`).
+
+Sends the close frame, tears down the input port so the read loop unblocks, and triggers the connection's `on-close` clause. Safe to call from another thread to force-close a stored connection.
+
+#### `(current-websocket)`
+Parameter. Inside a WebSocket handler, holds the current `websocket-connection` value. Parameterize it to redirect `send-text`/`send-binary` at another connection (the standard pattern for broadcasting).
+
+#### `(websocket-max-frame-size [bytes])`
+Parameter. Maximum size in bytes of an incoming frame. Default `(* 1024 1024)`. Frames larger than this are rejected with close code `1009`.
 
 ### Chiccup Functions
 
