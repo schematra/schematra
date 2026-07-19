@@ -1144,9 +1144,10 @@
 ;; This function starts the Spiffy web server with Schematra routing enabled.
 ;;
 ;; ### Parameters
-;;   - `port`: integer - HTTP server port (default: 8080)  
+;;   - `port`: integer - HTTP server port (default: 8080)
 ;;   - `repl?`: boolean - Enabled NREPL, only if dev mode is true (default: #f)
 ;;   - `repl-port`: integer - REPL port for development mode (default: 1234)
+;;   - `show-banner?`: boolean - Displays Schematra startup banner (default: #t)
 ;;
 ;; ### Foreground vs background
 ;; By default, `schematra-start` blocks the current thread. The one
@@ -1173,6 +1174,7 @@
                          (port 8080)
                          (bind-address #f)
                          (background (running-interactively?))
+                         (show-banner? #t)
                          (log-output (current-output-port))
                          (log-level 'info)
                          (log-format 'text))
@@ -1211,9 +1213,9 @@
   (server-software `(("Schematra"
                       ,(conc version-major "." version-minor)
                       ,(conc "Running on CHICKEN " (chicken-version)))))
-  (display (schematra-banner))
   (server-port port)
   (server-bind-address bind-address)
+  (when show-banner? (display (schematra-banner)))
 
   (if background
       (thread-start! (lambda () (start-server)))
