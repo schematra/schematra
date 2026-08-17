@@ -331,97 +331,98 @@
 
 
 (with-schematra-app (schematra/make-app)
- ;; Enable middleware
- (use-middleware! (session-middleware "task-board-secret"))
- (use-middleware! (body-parser-middleware))
+ (lambda ()
+  ;; Enable middleware
+  (use-middleware! (session-middleware "task-board-secret"))
+  (use-middleware! (body-parser-middleware))
 
- ;; Main board view
- (get "/"
-      (initialize-sample-data!)
-      (ccup->html
-       (main-layout
-	`[div
-          [.flex.justify-between.items-center.mb-8
-           [div
-            [h1.text-3xl.font-bold.text-gray-900 "Task Board"]
-            [p.text-gray-600.mt-1 "Functional components with HTMX interactivity"]]
-           ,(priority-filter (get-filter-param))]
+  ;; Main board view
+  (get "/"
+       (initialize-sample-data!)
+       (ccup->html
+        (main-layout
+ 	`[div
+           [.flex.justify-between.items-center.mb-8
+            [div
+             [h1.text-3xl.font-bold.text-gray-900 "Task Board"]
+             [p.text-gray-600.mt-1 "Functional components with HTMX interactivity"]]
+            ,(priority-filter (get-filter-param))]
           
-          ,(task-board (get-filter-param))
+           ,(task-board (get-filter-param))
           
-          [.mt-8.text-center.text-sm.text-gray-500
-           [p "This example showcases:"]
-           [ul.mt-2.space-y-1
-            [li "• Pure functional component composition with Chiccup"]
-            [li "• HTMX for seamless interactivity without page refreshes"]  
-            [li "• Drag & drop task management"]
-            [li "• HTML structure that mirrors data structure"]]]])))
+           [.mt-8.text-center.text-sm.text-gray-500
+            [p "This example showcases:"]
+            [ul.mt-2.space-y-1
+             [li "• Pure functional component composition with Chiccup"]
+             [li "• HTMX for seamless interactivity without page refreshes"]  
+             [li "• Drag & drop task management"]
+             [li "• HTML structure that mirrors data structure"]]]])))
 
- ;; Board updates (for filtering)
- (get "/board"
-      (ccup->html (task-board (get-filter-param))))
+  ;; Board updates (for filtering)
+  (get "/board"
+       (ccup->html (task-board (get-filter-param))))
 
- ;; New task form
- (get "/tasks/new"
-      (let ((column (string->symbol (or (alist-ref 'column (current-params)) "todo"))))
-	(ccup->html (task-form #f column))))
+  ;; New task form
+  (get "/tasks/new"
+       (let ((column (string->symbol (or (alist-ref 'column (current-params)) "todo"))))
+ 	(ccup->html (task-form #f column))))
 
- ;; Edit task form  
- (get "/tasks/:id/edit"
-      (let* ((id (string->number (alist-ref "id" (current-params) equal?)))
-             (task (get-task id)))
-	(if task
-            (ccup->html (task-form task))
-            (ccup->html `[div "Task not found"]))))
+  ;; Edit task form  
+  (get "/tasks/:id/edit"
+       (let* ((id (string->number (alist-ref "id" (current-params) equal?)))
+              (task (get-task id)))
+ 	(if task
+             (ccup->html (task-form task))
+             (ccup->html `[div "Task not found"]))))
 
- ;; Create new task
- (post "/tasks"
-       (let ((title (alist-ref 'title (current-params)))
-             (description (alist-ref 'description (current-params)))
-             (priority (string->symbol (alist-ref 'priority (current-params))))
-             (column (string->symbol (alist-ref 'column (current-params)))))
-         (create-task! title description priority column)
-         (ccup->html (task-board))))
+  ;; Create new task
+  (post "/tasks"
+        (let ((title (alist-ref 'title (current-params)))
+              (description (alist-ref 'description (current-params)))
+              (priority (string->symbol (alist-ref 'priority (current-params))))
+              (column (string->symbol (alist-ref 'column (current-params)))))
+          (create-task! title description priority column)
+          (ccup->html (task-board))))
 
- ;; Update task
- (put "/tasks/:id"
-      (let* ((id (string->number (alist-ref "id" (current-params) equal?)))
-             (title (alist-ref 'title (current-params)))
-             (description (alist-ref 'description (current-params)))
-             (priority (string->symbol (alist-ref 'priority (current-params))))
-             (column (string->symbol (alist-ref 'column (current-params))))
-             (updates `((title . ,title)
-			(description . ,description)
-			(priority . ,priority)
-			(column . ,column))))
-	(update-task! id updates)
-	(ccup->html (task-board))))
+  ;; Update task
+  (put "/tasks/:id"
+       (let* ((id (string->number (alist-ref "id" (current-params) equal?)))
+              (title (alist-ref 'title (current-params)))
+              (description (alist-ref 'description (current-params)))
+              (priority (string->symbol (alist-ref 'priority (current-params))))
+              (column (string->symbol (alist-ref 'column (current-params))))
+              (updates `((title . ,title)
+ 			(description . ,description)
+ 			(priority . ,priority)
+ 			(column . ,column))))
+ 	(update-task! id updates)
+ 	(ccup->html (task-board))))
 
- ;; Move task between columns
- (put "/tasks/:id/move"
-      (let* ((id (string->number (alist-ref "id" (current-params) equal?)))
-             (new-column (string->symbol (alist-ref 'column (current-params))))
-             (updates `((column . ,new-column))))
-	(update-task! id updates)
-	(ccup->html (task-board))))
+  ;; Move task between columns
+  (put "/tasks/:id/move"
+       (let* ((id (string->number (alist-ref "id" (current-params) equal?)))
+              (new-column (string->symbol (alist-ref 'column (current-params))))
+              (updates `((column . ,new-column))))
+ 	(update-task! id updates)
+ 	(ccup->html (task-board))))
 
- ;; Delete task
- (delete "/tasks/:id"
-         (let ((id (string->number (alist-ref "id" (current-params) equal?))))
-           (delete-task! id)
-           ""))
+  ;; Delete task
+  (delete "/tasks/:id"
+          (let ((id (string->number (alist-ref "id" (current-params) equal?))))
+            (delete-task! id)
+            ""))
 
- (print "\n🚀 Task Board Example running at http://localhost:8080")
- (print "\nThis example demonstrates:")
- (print "  • Functional component composition with Chiccup")
- (print "  • HTMX for seamless client-side updates")
- (print "  • Drag & drop interactivity")
- (print "  • How HTML structure mirrors data structure")
- (print "\nTry creating, editing, and moving tasks around!")
+  (print "\n🚀 Task Board Example running at http://localhost:8080")
+  (print "\nThis example demonstrates:")
+  (print "  • Functional component composition with Chiccup")
+  (print "  • HTMX for seamless client-side updates")
+  (print "  • Drag & drop interactivity")
+  (print "  • How HTML structure mirrors data structure")
+  (print "\nTry creating, editing, and moving tasks around!")
 
- ;; =============================================================================
- ;; Server Setup
- ;; =============================================================================
+  ;; =============================================================================
+  ;; Server Setup
+  ;; =============================================================================
 
- (schematra-install)
- (schematra-start))
+  (schematra-install)
+  (schematra-start)))

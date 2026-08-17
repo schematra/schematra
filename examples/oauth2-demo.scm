@@ -34,29 +34,30 @@
 
 (with-schematra-app
  (schematra/make-app)
+ (lambda ()
 
- ;; oauthtoothy requires sessions
- (use-middleware! (session-middleware "my secret key"))
- (use-middleware!
-  (oauthtoothy-middleware
-   (list (google-provider
-	  client-id: (get-environment-variable "GOOGLE_CLIENT_ID")
-	  client-secret: (get-environment-variable "GOOGLE_CLIENT_SECRET")))
-   success-redirect: "/profile"
-   save-proc: (lambda (user-id _ user-info-alist _) (user-save user-id user-info-alist))
-   load-proc: (lambda (user-id provider-name) (load-user user-id))))
+  ;; oauthtoothy requires sessions
+  (use-middleware! (session-middleware "my secret key"))
+  (use-middleware!
+   (oauthtoothy-middleware
+    (list (google-provider
+ 	  client-id: (get-environment-variable "GOOGLE_CLIENT_ID")
+ 	  client-secret: (get-environment-variable "GOOGLE_CLIENT_SECRET")))
+    success-redirect: "/profile"
+    save-proc: (lambda (user-id _ user-info-alist _) (user-save user-id user-info-alist))
+    load-proc: (lambda (user-id provider-name) (load-user user-id))))
 
- (get "/profile"
-      (let ((auth (current-auth)))
-	(if (alist-ref 'authenticated? auth)
-	    (begin
-	      (ccup->html `[h1 ,(string-append "welcome " (alist-ref 'name auth))]))
-	    ;; trigger the auth sequence
-	    (redirect "/auth/google"))))
+  (get "/profile"
+       (let ((auth (current-auth)))
+ 	(if (alist-ref 'authenticated? auth)
+ 	    (begin
+ 	      (ccup->html `[h1 ,(string-append "welcome " (alist-ref 'name auth))]))
+ 	    ;; trigger the auth sequence
+ 	    (redirect "/auth/google"))))
 
- (get "/logout"
-      (session-destroy!)
-      (redirect "/"))
+  (get "/logout"
+       (session-destroy!)
+       (redirect "/"))
 
- (schematra-install)
- (schematra-start development?: #f))
+  (schematra-install)
+  (schematra-start development?: #f)))

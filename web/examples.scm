@@ -4,28 +4,29 @@
 
 (define app (schematra/make-app))
 (with-schematra-app app
- (use-middleware! (session-middleware "secret-key"))
+ (lambda ()
+  (use-middleware! (session-middleware "secret-key"))
 
- (get "/"
-      (let ((user (session-get "username")))
-        (if user
-            (ccup->html `[h1 ,(format "Welcome back, ~a!" user)])
-            (redirect "/login"))))
+  (get "/"
+       (let ((user (session-get "username")))
+         (if user
+             (ccup->html `[h1 ,(format "Welcome back, ~a!" user)])
+             (redirect "/login"))))
 
- (get "/login"
-      (ccup->html
-       `[form (@ (method "POST") (action "/login"))
-              [input (@ (type "text") (name "username")
-                        (placeholder "Username"))]
-              [button "Login"]]))
+  (get "/login"
+       (ccup->html
+        `[form (@ (method "POST") (action "/login"))
+               [input (@ (type "text") (name "username")
+                         (placeholder "Username"))]
+               [button "Login"]]))
 
- (post "/login"
-       (let ((username (alist-ref "username" (current-params) equal?)))
-         (session-set! "username" username)
-         (redirect "/")))
+  (post "/login"
+        (let ((username (alist-ref "username" (current-params) equal?)))
+          (session-set! "username" username)
+          (redirect "/")))
 
- (schematra-install)
- (schematra-start))
+  (schematra-install)
+  (schematra-start)))
 EXAMPLE
 ))
 
