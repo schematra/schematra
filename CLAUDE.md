@@ -118,5 +118,5 @@ This is a mono-repo with versioned eggs. The release script handles:
 External dependencies are managed in `deps.txt` and include:
 - Core CHICKEN modules (srfi-*, chicken.*)
 - Web-related: spiffy, intarweb, uri-common
-- Utilities: medea (JSON), openssl, http-client
+- Utilities: srfi-180 (JSON), openssl, http-client
 - Cryptography: message-digest, hmac, sha2, base64

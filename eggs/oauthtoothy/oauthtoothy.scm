@@ -48,7 +48,7 @@
   chicken.format
   chicken.bitwise
   srfi-18 ;; thread
-  medea
+  srfi-180
   openssl
   http-curl ;; instead of http-client
   intarweb
@@ -142,8 +142,12 @@
          form-data
          (lambda (response-port)
            (let* ((response-body (read-string #f response-port))
-                  (json-response (read-json response-body)))
-             (unless json-response (signal (condition '(json parser-error ,response-body))))
+                  (json-response (read-json-string response-body)))
+             ;; A token response must be a non-empty JSON object, which maps
+             ;; to a non-empty alist. Anything else (parse failure -> #f, or a
+             ;; bare scalar/array) is a bad response from the provider.
+             (unless (pair? json-response)
+               (signal (condition '(json parser-error ,response-body))))
              json-response)))
         (exn (json)
              ;; JSON parsing error - don't retry
@@ -176,7 +180,7 @@
 	  (request (make-request uri: (uri-reference user-info-url)
 				 headers: (headers
 					   `((authorization #(,(string-append "Bearer " access-token) raw)))))))
-     ((oauth-with-input-from-request) request #f read-json)))
+     ((oauth-with-input-from-request) request #f json-read)))
 
  ;; OAuth2 authentication middleware for Schematra
  ;;
