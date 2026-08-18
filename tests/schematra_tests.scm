@@ -14,7 +14,6 @@
  uri-common
  srfi-69
  srfi-13
- medea
  schematra
  schematra.test
  schematra.ws
@@ -183,7 +182,9 @@
     (test "JSON status" 'ok (test-route-status app 'GET "/json"))
     (let ((body (test-route-body app 'GET "/json")))
       (test "JSON body parses" "alice"
-            (alist-ref 'name (read-json body))))))
+            (alist-ref 'name (read-json-string body))))
+    (test "read-json-string returns #f on malformed JSON" #f
+          (read-json-string "{\"a\":1"))))
 
 ;; ============================================================
 ;; 11. Body Parser

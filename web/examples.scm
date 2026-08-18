@@ -4,28 +4,29 @@
 
 (define app (schematra/make-app))
 (with-schematra-app app
- (use-middleware! (session-middleware "secret-key"))
+ (lambda ()
+  (use-middleware! (session-middleware "secret-key"))
 
- (get "/"
-      (let ((user (session-get "username")))
-        (if user
-            (ccup->html `[h1 ,(format "Welcome back, ~a!" user)])
-            (redirect "/login"))))
+  (get "/"
+       (let ((user (session-get "username")))
+         (if user
+             (ccup->html `[h1 ,(format "Welcome back, ~a!" user)])
+             (redirect "/login"))))
 
- (get "/login"
-      (ccup->html
-       `[form (@ (method "POST") (action "/login"))
-              [input (@ (type "text") (name "username")
-                        (placeholder "Username"))]
-              [button "Login"]]))
+  (get "/login"
+       (ccup->html
+        `[form (@ (method "POST") (action "/login"))
+               [input (@ (type "text") (name "username")
+                         (placeholder "Username"))]
+               [button "Login"]]))
 
- (post "/login"
-       (let ((username (alist-ref "username" (current-params) equal?)))
-         (session-set! "username" username)
-         (redirect "/")))
+  (post "/login"
+        (let ((username (alist-ref "username" (current-params) equal?)))
+          (session-set! "username" username)
+          (redirect "/")))
 
- (schematra-install)
- (schematra-start))
+  (schematra-install)
+  (schematra-start)))
 EXAMPLE
 ))
 
@@ -163,7 +164,7 @@ EXAMPLE
                           (request-headers (current-request)) equal?)))
     (if (signature-valid? (get-environment-variable "WEBHOOK_SECRET") raw sig)
         (begin
-          (process-event! (read-json raw))
+          (process-event! (read-json-string raw))
           '(ok "Received"))
         '(forbidden "Invalid signature"))))
 
@@ -187,7 +188,7 @@ EXAMPLE
 
 (define ex6 '(#<<EXAMPLE
 ;; Testing routes without a server - fast and isolated!
-(import test schematra schematra.test srfi-13 chicken.format medea)
+(import test schematra schematra.test srfi-13 chicken.format)
 
 ;; Create isolated test app
 (define test-app (schematra/make-app))
@@ -236,7 +237,7 @@ EXAMPLE
 
   (test "POST /api/echo returns JSON with correct content"
     '((message . "Hello Alice"))
-    (read-json (test-route-body test-app 'POST "/api/echo?name=Alice")))
+    (read-json-string (test-route-body test-app 'POST "/api/echo?name=Alice")))
 
   (test "404 on unknown route"
     #f

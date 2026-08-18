@@ -10,7 +10,7 @@
 	       http-curl
 	       intarweb
 	       uri-common
-	       medea
+	       srfi-180
 	       schematra
 	       schematra-session)
  (component-options

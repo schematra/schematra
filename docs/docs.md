@@ -147,7 +147,7 @@ Schematra is perfect for:
 
 - CHICKEN Scheme 5.0 or later
 - Required eggs: json, spiffy, format, openssl, message-digest, hmac,
-  sha2, base64, http-client, medea, nrepl, srfi-1, srfi-13, srfi-18,
+  sha2, base64, http-client, srfi-180, nrepl, srfi-1, srfi-13, srfi-18,
   srfi-69
 
 ### Installation
@@ -1662,7 +1662,7 @@ Use `test-route-redirect-location` to extract the Location header as a string:
 ### Testing JSON Responses
 
 ```scheme
-(import medea) ;; for read-json
+;; `read-json-string` is exported by schematra itself, no extra import needed
 
 (test-group "JSON API"
   (let ((app (with-test-app a
@@ -1673,7 +1673,7 @@ Use `test-route-redirect-location` to extract the Location header as a string:
           (test-route-status app 'GET "/api/user"))
     (let ((body (test-route-body app 'GET "/api/user")))
       (test "JSON name field" "alice"
-            (alist-ref 'name (read-json body))))))
+            (alist-ref 'name (read-json-string body))))))
 ```
 
 ### Testing Middleware

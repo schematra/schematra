@@ -61,6 +61,8 @@
  request-body-size
  request-body-cleanup!
  send-json-response
+ read-json-string
+ write-json-string
  schematra-route-request
  schematra-install
  schematra-start
@@ -89,7 +91,7 @@
  chicken.file.posix
  chicken.time.posix
   chicken.format
-  medea ;; for send-json
+  srfi-180 ;; for send-json-response / read-json-string
  sendfile
  uri-common
  spiffy
@@ -918,9 +920,29 @@
                       `(set-cookie #((,key . ,val) ,(vector-ref val-vector 1))))
                     )))
 
+;; Serialize a Scheme datum to a JSON string.
+;;
+;; Uses the SRFI-180 mapping: alists with symbol keys become objects,
+;; vectors become arrays, the symbol `null` becomes null, and
+;; strings/numbers/booleans map directly. Note that SRFI-180 silently
+;; skips values it has no mapping for (symbols other than `null`,
+;; characters, blobs, ...), so pass only the types listed above.
+(define (write-json-string datum)
+  (call-with-output-string
+   (lambda (port) (json-write datum port))))
+
+;; Parse a JSON string, or return #f when it is not valid JSON.
+;;
+;; This is the string-oriented counterpart to SRFI-180's port-based
+;; `json-read`, which raises a condition on malformed input. Returns #f
+;; instead so callers can branch on the result.
+(define (read-json-string str)
+  (handle-exceptions exn #f
+    (call-with-input-string str json-read)))
+
 ;; helper to output json content
 (define (send-json-response datum #!optional (status 'ok))
-  (let ((output (json->string datum)))
+  (let ((output (write-json-string datum)))
     `(,status ,output ((content-type application/json)))))
 
 (define (use-middleware! middleware)
