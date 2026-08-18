@@ -8,7 +8,6 @@
  (dependencies spiffy
                base64
                simple-sha1
-               nrepl
                srfi-1
                srfi-13
                srfi-18
