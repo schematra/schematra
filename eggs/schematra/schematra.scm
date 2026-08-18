@@ -1167,8 +1167,6 @@
 ;;
 ;; ### Parameters
 ;;   - `port`: integer - HTTP server port (default: 8080)
-;;   - `repl?`: boolean - Enabled NREPL, only if dev mode is true (default: #f)
-;;   - `repl-port`: integer - REPL port for development mode (default: 1234)
 ;;   - `show-banner?`: boolean - Displays Schematra startup banner (default: #t)
 ;;
 ;; ### Foreground vs background

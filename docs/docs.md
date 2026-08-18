@@ -147,7 +147,7 @@ Schematra is perfect for:
 
 - CHICKEN Scheme 5.0 or later
 - Required eggs: json, spiffy, format, openssl, message-digest, hmac,
-  sha2, base64, http-client, srfi-180, nrepl, srfi-1, srfi-13, srfi-18,
+  sha2, base64, http-client, srfi-180, srfi-1, srfi-13, srfi-18,
   srfi-69
 
 ### Installation
