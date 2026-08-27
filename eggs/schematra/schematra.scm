@@ -1084,7 +1084,7 @@
                                                (sendfile f (response-port (current-response)))
                                                (finish-response-body (current-response))))
                                            [(exn i/o file) (send-status 'forbidden)])
-                                         (send-response body: (current-body)))
+                                         (send-response status: orig-status body: (current-body)))
                                      (cond
                                        [(string? response-tuple) `(ok ,response-tuple ())]
                                        [(is-chiccup-response? response-tuple) `(ok ,response-tuple ())]
